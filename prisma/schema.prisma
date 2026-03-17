@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
+  password  String
+  nickname  String?
+  avatar    String?
+  role      String     @default("USER")
+  status    String     @default("ACTIVE")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  favorites Favorite[]
+  comments  Comment[]
+  foodFavorites FoodFavorite[]
+  foodComments  FoodComment[]
+  @@map("users")
+}
+
+model Category {
+  id          Int          @id @default(autoincrement())
+  name        String
+  type        String
+  description String?
+  sort        Int          @default(0)
+  status      String       @default("ACTIVE")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  attractions Attraction[]
+  foods       Food[]
+  @@map("categories")
+}
+
+model Attraction {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String     @db.Text
+  address     String
+  images      Json?
+  openTime    String?    @map("open_time")
+  ticketInfo  String?    @map("ticket_info")
+  latitude    Float?
+  longitude   Float?
+  categoryId  Int        @map("category_id")
+  rating      Float?
+  viewCount   Int        @default(0) @map("view_count")
+  status      String     @default("PUBLISHED")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  category    Category   @relation(fields: [categoryId], references: [id])
+  favorites   Favorite[]
+  comments    Comment[]
+  @@map("attractions")
+}
+
+model Food {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String        @db.Text
+  images      Json?
+  categoryId  Int           @map("category_id")
+  restaurants Json?
+  rating      Float?
+  viewCount   Int           @default(0) @map("view_count")
+  status      String        @default("PUBLISHED")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  category    Category      @relation(fields: [categoryId], references: [id])
+  favorites   FoodFavorite[]
+  comments    FoodComment[]
+  @@map("foods")
+}
+
+model Favorite {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  attractionId Int        @map("attraction_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attraction   Attraction @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  @@unique([userId, attractionId])
+  @@map("favorites")
+}
+
+model FoodFavorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  foodId    Int      @map("food_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  food      Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  @@unique([userId, foodId])
+  @@map("food_favorites")
+}
+
+model Comment {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  attractionId Int        @map("attraction_id")
+  content      String     @db.Text
+  rating       Int?
+  status       String     @default("APPROVED")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attraction   Attraction @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  @@map("comments")
+}
+
+model FoodComment {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  foodId    Int      @map("food_id")
+  content   String   @db.Text
+  rating    Int?
+  status    String   @default("APPROVED")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  food      Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  @@map("food_comments")
+}
