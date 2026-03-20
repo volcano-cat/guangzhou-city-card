@@ -1,4 +1,4 @@
-﻿import { NextRequest } from 'next/server'
+import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth'
 import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/response'
@@ -15,7 +15,7 @@ export async function POST(
 
     const attractionId = parseInt(params.id)
     const body = await request.json()
-    const { content, rating } = body
+    const { content, rating, parentId } = body
 
     if (!content || content.trim() === '') {
       return errorResponse('请输入评论内容')
@@ -25,6 +25,7 @@ export async function POST(
       data: {
         userId: user.userId,
         attractionId,
+        parentId: parentId || null,
         content,
         rating: rating || null,
       },
@@ -76,10 +77,13 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '10')
+    const sortBy = searchParams.get('sortBy') || 'createdAt'
+    const sortOrder = searchParams.get('sortOrder') || 'desc'
 
     const where = {
       attractionId,
       status: 'APPROVED' as const,
+      parentId: null, // 只获取顶级评论
     }
 
     const total = await prisma.comment.count({ where })
@@ -94,8 +98,28 @@ export async function GET(
             avatar: true,
           },
         },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                nickname: true,
+                avatar: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+          },
+        },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: {
+        [sortBy]: sortOrder,
+      },
       skip: (page - 1) * pageSize,
       take: pageSize,
     })

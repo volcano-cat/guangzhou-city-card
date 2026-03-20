@@ -1,77 +1,132 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { successResponse, errorResponse } from '@/lib/response'
 import { authenticate } from '@/lib/auth'
-import { successResponse, errorResponse, notFoundResponse } from '@/lib/response'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const id = parseInt(params.id)
-
-    if (isNaN(id)) {
-      return errorResponse('无效的美食ID')
-    }
-
-    const user = await authenticate(request)
-
+    const { id } = params
+    
     const food = await prisma.food.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
       include: {
         category: true,
         comments: {
-          where: { status: 'APPROVED' },
           include: {
             user: {
               select: {
                 id: true,
                 nickname: true,
-                avatar: true,
-              },
+                avatar: true
+              }
             },
+            replies: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    nickname: true,
+                    avatar: true
+                  }
+                },
+                _count: {
+                  select: {
+                    likes: true
+                  }
+                }
+              }
+            },
+            _count: {
+              select: {
+                likes: true,
+                replies: true
+              }
+            }
           },
-          orderBy: { createdAt: 'desc' },
-          take: 20,
+          where: {
+            parentId: null
+          }
         },
         _count: {
           select: {
             favorites: true,
-            comments: true,
-          },
-        },
-      },
+            comments: true
+          }
+        }
+      }
     })
 
     if (!food) {
-      return notFoundResponse('美食不存在')
+      return errorResponse('美食不存在', 404)
     }
 
-    await prisma.food.update({
-      where: { id },
-      data: { viewCount: { increment: 1 } },
-    })
-
+    // 检查是否已收藏
     let isFavorited = false
-    if (user) {
-      const favorite = await prisma.foodFavorite.findUnique({
+    const userPayload = await authenticate(request)
+    if (userPayload) {
+      const favorite = await prisma.foodFavorite.findFirst({
         where: {
-          userId_foodId: {
-            userId: user.userId,
-            foodId: id,
-          },
-        },
+          foodId: parseInt(id),
+          userId: userPayload.userId
+        }
       })
       isFavorited = !!favorite
+
+      // 获取用户对评论的点赞状态
+      if (food.comments) {
+        // 收集所有评论和回复的 ID
+        const commentIds = food.comments.flatMap(comment => {
+          return [comment.id, ...comment.replies.map(reply => reply.id)]
+        })
+
+        // 查询用户的点赞记录
+        const likes = await prisma.foodCommentLike.findMany({
+          where: {
+            userId: userPayload.userId,
+            commentId: {
+              in: commentIds
+            }
+          },
+          select: {
+            commentId: true
+          }
+        })
+
+        // 创建点赞 ID 集合
+        const likedCommentIds = new Set(likes.map(like => like.commentId))
+
+        // 为评论和回复添加 isLiked 字段
+        food.comments = food.comments.map(comment => {
+          const updatedComment = {
+            ...comment,
+            isLiked: likedCommentIds.has(comment.id)
+          }
+
+          // 为回复添加 isLiked 字段
+          if (updatedComment.replies) {
+            updatedComment.replies = updatedComment.replies.map(reply => ({
+              ...reply,
+              isLiked: likedCommentIds.has(reply.id)
+            }))
+          }
+
+          return updatedComment
+        })
+      }
     }
 
-    return successResponse({
-      ...food,
-      isFavorited,
+    // 增加浏览量
+    await prisma.food.update({
+      where: { id: parseInt(id) },
+      data: {
+        viewCount: { increment: 1 }
+      }
     })
+
+    return successResponse({ ...food, isFavorited }, '获取美食详情成功')
 
   } catch (error) {
     console.error('获取美食详情错误:', error)
-    return errorResponse('获取美食详情失败', 500)
+    return errorResponse('获取美食详情失败，请稍后重试', 500)
   }
 }

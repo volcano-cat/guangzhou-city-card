@@ -5,16 +5,13 @@ import { successResponse, errorResponse } from '@/lib/response'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-
     const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '12')
+    const pageSize = parseInt(searchParams.get('pageSize') || '10')
     const categoryId = searchParams.get('categoryId')
     const keyword = searchParams.get('keyword')
-    const sortBy = searchParams.get('sortBy') || 'createdAt'
-    const sortOrder = searchParams.get('sortOrder') || 'desc'
 
     const where: any = {
-      status: 'PUBLISHED',
+      status: 'PUBLISHED'
     }
 
     if (categoryId) {
@@ -24,48 +21,48 @@ export async function GET(request: NextRequest) {
     if (keyword) {
       where.OR = [
         { name: { contains: keyword } },
-        { description: { contains: keyword } },
-        { address: { contains: keyword } },
+        { description: { contains: keyword } }
       ]
     }
 
-    const total = await prisma.attraction.count({ where })
-
-    const attractions = await prisma.attraction.findMany({
-      where,
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-          },
+    const [attractions, total] = await Promise.all([
+      prisma.attraction.findMany({
+        where,
+        include: {
+          category: true,
+          _count: {
+            select: {
+              favorites: true,
+              comments: true
+            }
+          }
         },
-        _count: {
-          select: {
-            favorites: true,
-            comments: true,
-          },
-        },
-      },
-      orderBy: {
-        [sortBy]: sortOrder,
-      },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    })
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: {
+          viewCount: 'desc'
+        }
+      }),
+      prisma.attraction.count({ where })
+    ])
 
-    return successResponse({
-      list: attractions,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
+    const totalPages = Math.ceil(total / pageSize)
+
+    return successResponse(
+      {
+        list: attractions,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages
+        }
       },
-    })
+      '获取景点列表成功'
+    )
 
   } catch (error) {
     console.error('获取景点列表错误:', error)
-    return errorResponse('获取景点列表失败', 500)
+    return errorResponse('获取景点列表失败，请稍后重试', 500)
   }
 }

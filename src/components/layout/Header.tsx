@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useState } from 'react'
@@ -15,6 +15,7 @@ const navigation = [
 export default function Header() {
   const { user, logout } = useAuthStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -41,19 +42,50 @@ export default function Header() {
 
           <div className="flex items-center space-x-4">
             {user ? (
-              <div className="flex items-center space-x-4">
-                <Link
-                  href="/user"
-                  className="text-gray-700 hover:text-red-600 text-sm font-medium"
+              <div className="relative">
+                <button 
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="text-gray-700 hover:text-red-600 text-sm font-medium flex items-center space-x-2"
                 >
-                  {user.nickname || user.email}
-                </Link>
-                <button
-                  onClick={logout}
-                  className="text-gray-500 hover:text-gray-700 text-sm"
-                >
-                  退出
+                  <div className="w-6 h-6 rounded-full overflow-hidden">
+                    <img 
+                      src={user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                      alt="头像" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span>{user.nickname || user.email}</span>
+                  <svg className={`h-4 w-4 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
+                <div className={`absolute left-0 mt-2 w-32 bg-white rounded-md shadow-lg py-1 z-50 ${userMenuOpen ? 'block' : 'hidden'}`}>
+                  <Link
+                    href="/user"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    onClick={() => setUserMenuOpen(false)}
+                  >
+                    个人中心
+                  </Link>
+                  {user.role === 'ADMIN' && (
+                    <Link
+                      href="/admin"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      管理中心
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => {
+                      logout();
+                      setUserMenuOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  >
+                    退出登录
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex items-center space-x-2">

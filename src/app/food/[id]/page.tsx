@@ -15,6 +15,12 @@ interface Comment {
     nickname: string | null
     avatar: string | null
   }
+  replies: Comment[]
+  _count: {
+    likes: number
+    replies: number
+  }
+  isLiked?: boolean
 }
 
 interface Restaurant {
@@ -52,12 +58,19 @@ export default function FoodDetailPage() {
   const [commentContent, setCommentContent] = useState('')
   const [commentRating, setCommentRating] = useState(5)
   const [submitting, setSubmitting] = useState(false)
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortOrder, setSortOrder] = useState('desc')
+  const [replyingTo, setReplyingTo] = useState<number | null>(null)
+  const [replyContent, setReplyContent] = useState('')
+  const [replying, setReplying] = useState(false)
 
   useEffect(() => {
     if (params.id) {
       fetchFood()
     }
-  }, [params.id])
+  }, [params.id, sortBy, sortOrder])
+
+
 
   const fetchFood = async () => {
     setLoading(true)
@@ -68,7 +81,28 @@ export default function FoodDetailPage() {
       }
       const res = await axios.get('/api/foods/' + params.id, { headers })
       if (res.data.success) {
-        setFood(res.data.data)
+        let sortedComments = [...res.data.data.comments]
+        
+        // 根据排序参数进行前端排序
+        if (sortBy === '_count.likes') {
+          sortedComments.sort((a, b) => {
+            const likesA = a._count?.likes || 0
+            const likesB = b._count?.likes || 0
+            return sortOrder === 'desc' ? likesB - likesA : likesA - likesB
+          })
+        } else if (sortBy === 'createdAt') {
+          sortedComments.sort((a, b) => {
+            const dateA = new Date(a.createdAt).getTime()
+            const dateB = new Date(b.createdAt).getTime()
+            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
+          })
+        }
+        
+        // 更新状态，使用排序后的评论
+        setFood({
+          ...res.data.data,
+          comments: sortedComments
+        })
         setIsFavorited(res.data.data.isFavorited)
       }
     } catch (error) {
@@ -127,6 +161,75 @@ export default function FoodDetailPage() {
       console.error('评论失败', error)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleReply = async (parentId: number) => {
+    if (!user) {
+      router.push('/login?redirect=/food/' + params.id)
+      return
+    }
+
+    if (!replyContent.trim()) {
+      alert('请输入回复内容')
+      return
+    }
+
+    setReplying(true)
+    try {
+      const res = await axios.post(
+        '/api/foods/' + params.id + '/comments',
+        { content: replyContent, parentId },
+        { headers: { Authorization: 'Bearer ' + token } }
+      )
+      if (res.data.success) {
+        setReplyContent('')
+        setReplyingTo(null)
+        fetchFood()
+      }
+    } catch (error) {
+      console.error('回复失败', error)
+    } finally {
+      setReplying(false)
+    }
+  }
+
+  const handleLike = async (commentId: number) => {
+    if (!user) {
+      router.push('/login?redirect=/food/' + params.id)
+      return
+    }
+
+    try {
+      const res = await axios.post(
+        '/api/foods/' + params.id + '/comments/' + commentId + '/like',
+        {},
+        { headers: { Authorization: 'Bearer ' + token } }
+      )
+      if (res.data.success) {
+        fetchFood()
+      }
+    } catch (error) {
+      console.error('点赞失败', error)
+    }
+  }
+
+  const handleUnlike = async (commentId: number) => {
+    if (!user) {
+      router.push('/login?redirect=/food/' + params.id)
+      return
+    }
+
+    try {
+      const res = await axios.delete(
+        '/api/foods/' + params.id + '/comments/' + commentId + '/like',
+        { headers: { Authorization: 'Bearer ' + token } }
+      )
+      if (res.data.success) {
+        fetchFood()
+      }
+    } catch (error) {
+      console.error('取消点赞失败', error)
     }
   }
 
@@ -229,14 +332,19 @@ export default function FoodDetailPage() {
                   <h2 className="text-xl font-semibold mb-4">📍 推荐餐厅</h2>
                   <div className="space-y-3">
                     {restaurantList.map((restaurant, index) => (
-                      <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                        <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <div>
-                          <div className="font-medium text-gray-900">{restaurant.name}</div>
-                          <div className="text-sm text-gray-500">{restaurant.address}</div>
+                      <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <a 
+                            href={`/map?type=restaurant&name=${encodeURIComponent(restaurant.name)}&address=${encodeURIComponent(restaurant.address)}`}
+                            className="flex-1 font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                          >
+                            <div className="mb-1">{restaurant.name}</div>
+                            <div className="text-sm">{restaurant.address}</div>
+                          </a>
                         </div>
                       </div>
                     ))}
@@ -247,7 +355,20 @@ export default function FoodDetailPage() {
           </div>
 
           <div className="mt-8 bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">用户评论 ({food._count.comments})</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">用户评论 ({food._count.comments})</h2>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">排序:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="text-sm border rounded-md px-2 py-1"
+                >
+                  <option value="createdAt">最新</option>
+                  <option value="_count.likes">最多点赞</option>
+                </select>
+              </div>
+            </div>
             
             <div className="mb-6">
               <textarea
@@ -289,7 +410,7 @@ export default function FoodDetailPage() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               {food.comments.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">暂无评论，快来发表第一条评论吧！</p>
               ) : (
@@ -297,8 +418,12 @@ export default function FoodDetailPage() {
                   <div key={comment.id} className="border-b border-gray-100 pb-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-white text-sm">
-                          {(comment.user.nickname || '用户')[0]}
+                        <div className="w-8 h-8 rounded-full overflow-hidden">
+                          <img 
+                            src={comment.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                            alt="用户头像" 
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                         <span className="ml-2 font-medium text-gray-900">
                           {comment.user.nickname || '匿名用户'}
@@ -321,12 +446,110 @@ export default function FoodDetailPage() {
                             ))}
                           </div>
                         )}
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 mr-4">
                           {new Date(comment.createdAt).toLocaleDateString()}
                         </span>
+                        <button
+                          onClick={() => comment.isLiked ? handleUnlike(comment.id) : handleLike(comment.id)}
+                          className="flex items-center text-sm text-gray-500 hover:text-red-600"
+                        >
+                          <svg
+                            className={`w-4 h-4 mr-1 ${comment.isLiked ? 'text-red-600 fill-red-600' : ''}`}
+                            fill={comment.isLiked ? 'currentColor' : 'none'}
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                          </svg>
+                          {comment._count?.likes || 0}
+                        </button>
                       </div>
                     </div>
-                    <p className="text-gray-600">{comment.content}</p>
+                    <p className="text-gray-600 mb-3">{comment.content}</p>
+                    <div className="flex items-center space-x-4 text-sm">
+                      <button
+                        onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                        className="text-gray-600 hover:text-red-600"
+                      >
+                        回复 ({comment._count?.replies || 0})
+                      </button>
+                    </div>
+                    
+                    {/* 回复输入框 */}
+                    {replyingTo === comment.id && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                        <textarea
+                          value={replyContent}
+                          onChange={(e) => setReplyContent(e.target.value)}
+                          placeholder="写下你的回复..."
+                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                          rows={3}
+                          disabled={!user}
+                        />
+                        <div className="flex justify-end mt-2 space-x-2">
+                          <button
+                            onClick={() => {
+                              setReplyingTo(null)
+                              setReplyContent('')
+                            }}
+                            className="px-3 py-1 text-sm bg-gray-200 rounded-md hover:bg-gray-300"
+                          >
+                            取消
+                          </button>
+                          <button
+                            onClick={() => handleReply(comment.id)}
+                            disabled={replying || !user || !replyContent.trim()}
+                            className="px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {replying ? '回复中...' : '回复'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 回复列表 */}
+                    {comment.replies && comment.replies.length > 0 && (
+                      <div className="mt-4 pl-8 space-y-4">
+                        {comment.replies.map((reply) => (
+                          <div key={reply.id} className="border-l-2 border-gray-200 pl-4 py-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center">
+                                <div className="w-6 h-6 rounded-full overflow-hidden">
+                                  <img 
+                                    src={reply.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                                    alt="用户头像" 
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <span className="ml-2 text-sm font-medium text-gray-900">
+                                  {reply.user.nickname || '匿名用户'}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <span className="text-xs text-gray-500 mr-3">
+                                  {new Date(reply.createdAt).toLocaleDateString()}
+                                </span>
+                                <button
+                                  onClick={() => reply.isLiked ? handleUnlike(reply.id) : handleLike(reply.id)}
+                                  className="flex items-center text-xs text-gray-500 hover:text-red-600"
+                                >
+                                  <svg
+                                    className={`w-3 h-3 mr-1 ${reply.isLiked ? 'text-red-600 fill-red-600' : ''}`}
+                                    fill={reply.isLiked ? 'currentColor' : 'none'}
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                  </svg>
+                                  {reply._count?.likes || 0}
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600">{reply.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -349,20 +572,7 @@ export default function FoodDetailPage() {
                 <div className="text-gray-900">{food.rating || '暂无评分'}</div>
               </div>
               
-              <div>
-                <div className="text-sm text-gray-500 mb-1">浏览量</div>
-                <div className="text-gray-900">{food.viewCount} 次</div>
-              </div>
               
-              <div>
-                <div className="text-sm text-gray-500 mb-1">收藏数</div>
-                <div className="text-gray-900">{food._count.favorites} 人</div>
-              </div>
-              
-              <div>
-                <div className="text-sm text-gray-500 mb-1">评论数</div>
-                <div className="text-gray-900">{food._count.comments} 条</div>
-              </div>
             </div>
           </div>
         </div>

@@ -28,16 +28,16 @@ export default function Footer() {
           <div>
             <h4 className="text-lg font-semibold mb-4">联系我们</h4>
             <ul className="space-y-2 text-gray-400">
-              <li>地址：广州市天河区</li>
-              <li>邮箱：contact@gz-citycard.com</li>
-              <li>电话：020-12345678</li>
+              <li>地址：广州市黄埔区</li>
+              <li>邮箱：956659043@qq.com</li>
+              <li>电话：15018621530</li>
             </ul>
           </div>
         </div>
         
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-          <p>&copy; 2024 广州城市名片. All rights reserved.</p>
-          <p className="mt-2 text-sm">毕业设计作品 - 广州航海学院</p>
+          <p>&copy; 2026 广州城市名片. guangzhou-city-card.</p>
+          <p className="mt-2 text-sm">毕业设计作品 - 王灿宏</p>
         </div>
       </div>
     </footer>

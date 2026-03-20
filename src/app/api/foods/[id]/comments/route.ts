@@ -15,7 +15,7 @@ export async function POST(
 
     const foodId = parseInt(params.id)
     const body = await request.json()
-    const { content, rating } = body
+    const { content, rating, parentId } = body
 
     if (!content || content.trim() === '') {
       return errorResponse('请输入评论内容')
@@ -25,6 +25,7 @@ export async function POST(
       data: {
         userId: user.userId,
         foodId,
+        parentId: parentId || null,
         content,
         rating: rating || null,
       },
@@ -80,6 +81,7 @@ export async function GET(
     const where = {
       foodId,
       status: 'APPROVED' as const,
+      parentId: null,
     }
 
     const total = await prisma.foodComment.count({ where })
@@ -92,6 +94,24 @@ export async function GET(
             id: true,
             nickname: true,
             avatar: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                nickname: true,
+                avatar: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
           },
         },
       },

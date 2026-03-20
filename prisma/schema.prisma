@@ -8,19 +8,23 @@ datasource db {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  email     String     @unique
-  password  String
-  nickname  String?
-  avatar    String?
-  role      String     @default("USER")
-  status    String     @default("ACTIVE")
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  favorites Favorite[]
-  comments  Comment[]
+  id            Int             @id @default(autoincrement())
+  email         String          @unique
+  password      String
+  nickname      String?
+  avatar        String?
+  role          String          @default("USER")
+  status        String          @default("ACTIVE")
+  emailVerified DateTime?       @map("email_verified")
+  image         String?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  favorites     Favorite[]
+  comments      Comment[]
   foodFavorites FoodFavorite[]
   foodComments  FoodComment[]
+  commentLikes  CommentLike[]
+  foodCommentLikes FoodCommentLike[]
   @@map("users")
 }
 
@@ -103,12 +107,16 @@ model Comment {
   id           Int        @id @default(autoincrement())
   userId       Int        @map("user_id")
   attractionId Int        @map("attraction_id")
+  parentId     Int?       @map("parent_id")
   content      String     @db.Text
   rating       Int?
   status       String     @default("APPROVED")
   createdAt    DateTime   @default(now()) @map("created_at")
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   attraction   Attraction @relation(fields: [attractionId], references: [id], onDelete: Cascade)
+  parent       Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      Comment[]  @relation("CommentReplies")
+  likes        CommentLike[]
   @@map("comments")
 }
 
@@ -116,11 +124,37 @@ model FoodComment {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
   foodId    Int      @map("food_id")
+  parentId  Int?     @map("parent_id")
   content   String   @db.Text
   rating    Int?
   status    String   @default("APPROVED")
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   food      Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  parent    FoodComment? @relation("FoodCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   FoodComment[] @relation("FoodCommentReplies")
+  likes     FoodCommentLike[]
   @@map("food_comments")
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  commentId Int      @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  @@unique([userId, commentId])
+  @@map("comment_likes")
+}
+
+model FoodCommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  commentId Int      @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   FoodComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  @@unique([userId, commentId])
+  @@map("food_comment_likes")
 }
