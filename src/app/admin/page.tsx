@@ -35,6 +35,11 @@ const AdminPage = () => {
       icon: '🍜'
     },
     {
+      name: '文化管理',
+      href: '/admin/culture',
+      icon: '🏮'
+    },
+    {
       name: '角色管理',
       href: '/admin/roles',
       icon: '👥'

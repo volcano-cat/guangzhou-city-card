@@ -1,16 +1,26 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { successResponse, errorResponse } from '@/lib/response'
+import { successResponse, errorResponse, notFoundResponse } from '@/lib/response'
 import { authenticate } from '@/lib/auth'
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string, itemId: string } }) {
   try {
-    const { id } = params
+    const { itemId } = params
     
-    const attraction = await prisma.attraction.findUnique({
-      where: { id: parseInt(id) },
+    // 更新浏览量
+    await prisma.cultureItem.update({
+      where: { id: parseInt(itemId) },
+      data: {
+        viewCount: {
+          increment: 1
+        }
+      }
+    })
+    
+    const cultureItem = await prisma.cultureItem.findUnique({
+      where: { id: parseInt(itemId) },
       include: {
-        category: true,
+        culture: true,
         comments: {
           include: {
             user: {
@@ -56,31 +66,31 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       }
     })
 
-    if (!attraction) {
-      return errorResponse('景点不存在', 404)
+    if (!cultureItem || cultureItem.status !== 'PUBLISHED' || cultureItem.culture.status !== 'PUBLISHED') {
+      return notFoundResponse('文化项目不存在')
     }
 
     // 检查是否已收藏
     let isFavorited = false
     const userPayload = await authenticate(request)
     if (userPayload) {
-      const favorite = await prisma.favorite.findFirst({
+      const favorite = await prisma.cultureFavorite.findFirst({
         where: {
-          attractionId: parseInt(id),
+          cultureItemId: parseInt(itemId),
           userId: userPayload.userId
         }
       })
       isFavorited = !!favorite
 
       // 获取用户对评论的点赞状态
-      if (attraction.comments) {
+      if (cultureItem.comments) {
         // 收集所有评论和回复的 ID
-        const commentIds = attraction.comments.flatMap(comment => {
+        const commentIds = cultureItem.comments.flatMap(comment => {
           return [comment.id, ...comment.replies.map(reply => reply.id)]
         })
 
         // 查询用户的点赞记录
-        const likes = await prisma.commentLike.findMany({
+        const likes = await prisma.cultureCommentLike.findMany({
           where: {
             userId: userPayload.userId,
             commentId: {
@@ -96,7 +106,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         const likedCommentIds = new Set(likes.map(like => like.commentId))
 
         // 为评论和回复添加 isLiked 字段
-        attraction.comments = attraction.comments.map(comment => {
+        cultureItem.comments = cultureItem.comments.map(comment => {
           const updatedComment = {
             ...comment,
             isLiked: likedCommentIds.has(comment.id)
@@ -115,18 +125,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       }
     }
 
-    // 增加浏览量
-    await prisma.attraction.update({
-      where: { id: parseInt(id) },
-      data: {
-        viewCount: { increment: 1 }
-      }
-    })
-
-  return successResponse({ ...attraction, isFavorited }, '获取景点详情成功')
+    return successResponse({ ...cultureItem, isFavorited }, '获取文化项目详情成功')
 
   } catch (error) {
-    console.error('获取景点详情错误:', error)
-    return errorResponse('获取景点详情失败，请稍后重试', 500)
+    console.error('获取文化项目详情错误:', error)
+    return errorResponse('获取文化项目详情失败，请稍后重试', 500)
   }
 }

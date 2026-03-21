@@ -25,6 +25,9 @@ model User {
   foodComments  FoodComment[]
   commentLikes  CommentLike[]
   foodCommentLikes FoodCommentLike[]
+  cultureFavorites CultureFavorite[]
+  cultureComments CultureComment[]
+  cultureCommentLikes CultureCommentLike[]
   @@map("users")
 }
 
@@ -157,4 +160,73 @@ model FoodCommentLike {
   comment   FoodComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
   @@unique([userId, commentId])
   @@map("food_comment_likes")
+}
+
+model Culture {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String        @db.Text
+  icon        String
+  image       String?
+  viewCount   Int           @default(0) @map("view_count")
+  status      String        @default("PUBLISHED")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  items       CultureItem[]
+  @@map("cultures")
+}
+
+model CultureItem {
+  id          Int             @id @default(autoincrement())
+  cultureId   Int             @map("culture_id")
+  name        String
+  description String          @db.Text
+  image       String?
+  viewCount   Int             @default(0) @map("view_count")
+  status      String          @default("PUBLISHED")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  culture     Culture         @relation(fields: [cultureId], references: [id])
+  favorites   CultureFavorite[]
+  comments    CultureComment[]
+  @@map("culture_items")
+}
+
+model CultureFavorite {
+  id           Int         @id @default(autoincrement())
+  userId       Int         @map("user_id")
+  cultureItemId Int        @map("culture_item_id")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cultureItem  CultureItem @relation(fields: [cultureItemId], references: [id], onDelete: Cascade)
+  @@unique([userId, cultureItemId])
+  @@map("culture_favorites")
+}
+
+model CultureComment {
+  id           Int         @id @default(autoincrement())
+  userId       Int         @map("user_id")
+  cultureItemId Int        @map("culture_item_id")
+  parentId     Int?        @map("parent_id")
+  content      String      @db.Text
+  rating       Int?
+  status       String      @default("APPROVED")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cultureItem  CultureItem @relation(fields: [cultureItemId], references: [id], onDelete: Cascade)
+  parent       CultureComment? @relation("CultureCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      CultureComment[] @relation("CultureCommentReplies")
+  likes        CultureCommentLike[]
+  @@map("culture_comments")
+}
+
+model CultureCommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  commentId Int      @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   CultureComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  @@unique([userId, commentId])
+  @@map("culture_comment_likes")
 }

@@ -1,36 +1,51 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+
+interface Culture {
+  id: number
+  name: string
+  description: string
+  icon: string
+  image: string | null
+  _count: {
+    items: number
+  }
+}
+
 export default function CulturePage() {
-  const cultures = [
-    {
-      title: '岭南文化',
-      description: '岭南文化是中华文化的重要组成部分，以广州为中心，融合了中原文化、海洋文化和本土文化，形成了独特的文化体系。',
-      icon: '🏛️'
-    },
-    {
-      title: '粤剧艺术',
-      description: '粤剧是广东省最大的地方戏曲剧种，被列入世界非物质文化遗产名录，以其独特的唱腔和表演形式著称。',
-      icon: '🎭'
-    },
-    {
-      title: '醒狮文化',
-      description: '醒狮是广东传统民俗文化的代表，每逢节庆都会有醒狮表演，象征着吉祥如意、驱邪避害。',
-      icon: '🦁'
-    },
-    {
-      title: '龙舟竞渡',
-      description: '端午节龙舟竞渡是广州重要的传统习俗，珠江两岸每年都会举办盛大的龙舟赛事。',
-      icon: '🚣'
-    },
-    {
-      title: '广府建筑',
-      description: '广府建筑以骑楼、西关大屋、镬耳墙等为代表，体现了岭南建筑的独特风格和中西合璧的特点。',
-      icon: '🏘️'
-    },
-    {
-      title: '茶文化',
-      description: '广州早茶文化源远流长，"一盅两件"是广州人独特的生活方式，体现了悠闲的生活态度。',
-      icon: '🍵'
+  const [cultures, setCultures] = useState<Culture[]>([])
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
+  useEffect(() => {
+    fetchCultures()
+  }, [page])
+
+  const fetchCultures = async () => {
+    setLoading(true)
+    try {
+      const res = await axios.get(`/api/culture?page=${page}&pageSize=6`)
+      if (res.data.success) {
+        setCultures(res.data.data.list)
+        setTotalPages(res.data.data.pagination.totalPages)
+      }
+    } catch (error) {
+      console.error('获取文化列表失败', error)
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -41,19 +56,54 @@ export default function CulturePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {cultures.map((culture, index) => (
-          <a 
-            key={index} 
-            href={`/culture/${index + 1}`}
-            className="card p-6 hover:shadow-lg transition-shadow duration-300"
-          >
-            <div className="text-5xl mb-4">{culture.icon}</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">{culture.title}</h3>
-            <p className="text-gray-600">{culture.description}</p>
-          </a>
-        ))}
-      </div>
+      {cultures.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-gray-500">暂无文化数据</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {cultures.map((culture) => (
+              <a 
+                key={culture.id} 
+                href={`/culture/${culture.id}`}
+                className="card p-6 hover:shadow-lg transition-shadow duration-300"
+              >
+                <div className="text-5xl mb-4">{culture.icon}</div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{culture.name}</h3>
+                <p className="text-gray-600 mb-4">{culture.description}</p>
+                <div className="text-sm text-gray-500">
+                  {culture._count.items} 个项目
+                </div>
+              </a>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <nav className="flex items-center space-x-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-2 rounded-md bg-gray-100 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
+                >
+                  上一页
+                </button>
+                <span className="px-4 py-2 text-gray-700">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-2 rounded-md bg-gray-100 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-200"
+                >
+                  下一页
+                </button>
+              </nav>
+            </div>
+          )}
+        </>
+      )}
 
       <div className="mt-12 bg-gray-50 rounded-lg p-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">广州历史</h2>
