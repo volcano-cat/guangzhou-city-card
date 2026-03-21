@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { toast } from 'sonner'
 
 interface User {
   id: number
@@ -16,7 +17,7 @@ interface User {
 }
 
 const RolesPage = () => {
-  const { user, token } = useAuthStore()
+  const { user, token, isLoading } = useAuthStore()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -35,17 +36,19 @@ const RolesPage = () => {
 
   // 检查用户是否为管理员
   useEffect(() => {
-    if (user !== undefined) {
+    if (!isLoading) {
       if (!user || user.role !== 'ADMIN') {
         router.push('/')
       }
     }
-  }, [user, router])
+  }, [user, router, isLoading])
 
   // 获取用户列表
   useEffect(() => {
-    fetchUsers()
-  }, [pagination.page, pagination.pageSize])
+    if (token) {
+      fetchUsers()
+    }
+  }, [pagination.page, pagination.pageSize, token])
 
   const fetchUsers = async () => {
     setLoading(true)
@@ -83,16 +86,18 @@ const RolesPage = () => {
       })
       if (res.data.success) {
         setShowEditModal(false)
+        toast.success('更新用户角色成功')
         fetchUsers()
       }
     } catch (error) {
       console.error('更新用户角色失败', error)
+      toast.error('更新用户角色失败，请稍后重试')
     }
   }
 
   const handleDeleteUser = async (id: number) => {
     if (id === user?.userId) {
-      alert('不能删除自己的账号')
+      toast.error('不能删除自己的账号')
       return
     }
     
@@ -102,10 +107,12 @@ const RolesPage = () => {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (res.data.success) {
+          toast.success('删除用户成功')
           fetchUsers()
         }
       } catch (error) {
         console.error('删除用户失败', error)
+        toast.error('删除用户失败，请稍后重试')
       }
     }
   }
@@ -121,6 +128,7 @@ const RolesPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         <div className="mb-4">
           <Link href="/admin" className="text-gray-600 hover:text-red-600 flex items-center">
             <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { toast } from 'sonner'
 
 interface Category {
   id: number
@@ -28,7 +29,7 @@ interface Food {
 }
 
 const FoodPage = () => {
-  const { user, token } = useAuthStore()
+  const { user, token, isLoading } = useAuthStore()
   const router = useRouter()
   const [foods, setFoods] = useState<Food[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -38,11 +39,17 @@ const FoodPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    images: [],
-    restaurants: [],
+    images: [] as string[],
+    restaurants: [] as {name: string, address: string}[],
     categoryId: 0,
     status: 'PUBLISHED'
   })
+  const [newRestaurant, setNewRestaurant] = useState({ name: '', address: '' })
+  const [showAddRestaurantModal, setShowAddRestaurantModal] = useState(false)
+  const [mapSearchKeyword, setMapSearchKeyword] = useState('')
+  const [mapSearchResults, setMapSearchResults] = useState<{name: string, address: string}[]>([])
+  const [mapSearchLoading, setMapSearchLoading] = useState(false)
+  const [uploadLoading, setUploadLoading] = useState(false)
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -52,22 +59,26 @@ const FoodPage = () => {
 
   // 检查用户是否为管理员
   useEffect(() => {
-    if (user !== undefined) {
+    if (!isLoading) {
       if (!user || user.role !== 'ADMIN') {
         router.push('/')
       }
     }
-  }, [user, router])
+  }, [user, router, isLoading])
 
   // 获取美食列表
   useEffect(() => {
-    fetchFoods()
-  }, [pagination.page, pagination.pageSize])
+    if (token) {
+      fetchFoods()
+    }
+  }, [pagination.page, pagination.pageSize, token])
 
   // 获取分类列表
   useEffect(() => {
-    fetchCategories()
-  }, [])
+    if (token) {
+      fetchCategories()
+    }
+  }, [token])
 
   const fetchFoods = async () => {
     setLoading(true)
@@ -106,22 +117,39 @@ const FoodPage = () => {
       description: '',
       images: [],
       restaurants: [],
-      categoryId: categories[0]?.id || 0,
+      categoryId: categories.length > 0 ? categories[0].id : 0,
       status: 'PUBLISHED'
     })
+    // 清空新餐厅数据
+    setNewRestaurant({ name: '', address: '' })
     setShowAddModal(true)
   }
 
   const handleEditFood = (food: Food) => {
     setEditingFood(food)
+    // 处理餐厅数据，确保它是数组格式
+    let restaurantsData = []
+    if (food.restaurants) {
+      if (typeof food.restaurants === 'string') {
+        try {
+          restaurantsData = JSON.parse(food.restaurants)
+        } catch {
+          restaurantsData = []
+        }
+      } else if (Array.isArray(food.restaurants)) {
+        restaurantsData = food.restaurants
+      }
+    }
     setFormData({
       name: food.name,
       description: food.description,
-      images: food.images || [],
-      restaurants: food.restaurants || [],
+      images: Array.isArray(food.images) ? food.images : [],
+      restaurants: restaurantsData,
       categoryId: food.category.id,
       status: food.status
     })
+    // 清空新餐厅数据
+    setNewRestaurant({ name: '', address: '' })
     setShowAddModal(true)
   }
 
@@ -140,6 +168,131 @@ const FoodPage = () => {
     }
   }
 
+  // 处理图片上传
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadLoading(true)
+    try {
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+
+      const res = await axios.post('/api/upload/food-image', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: 'Bearer ' + token
+        }
+      })
+
+      if (res.data.success) {
+        setFormData({ ...formData, images: [res.data.data.url] })
+      }
+    } catch (error) {
+      console.error('上传图片失败', error)
+    } finally {
+      setUploadLoading(false)
+    }
+  }
+
+  // 处理添加餐厅
+  const handleAddRestaurant = () => {
+    if (newRestaurant.name && newRestaurant.address) {
+      // 基本地址验证
+      if (newRestaurant.address.length < 5) {
+        toast.error('请输入有效的地址，地址长度至少为5个字符');
+        return;
+      }
+      setFormData({
+        ...formData,
+        restaurants: [...formData.restaurants, { ...newRestaurant }]
+      })
+      setNewRestaurant({ name: '', address: '' })
+      setShowAddRestaurantModal(false)
+      // 显示添加成功提示
+      toast.success('添加餐厅成功')
+    } else {
+      toast.error('请选择餐厅');
+    }
+  }
+
+  // 打开添加餐厅弹窗
+  const openAddRestaurantModal = () => {
+    setShowAddRestaurantModal(true)
+    setMapSearchKeyword('')
+    setMapSearchResults([])
+  }
+
+  // 关闭添加餐厅弹窗并清空选中的餐厅
+  const closeAddRestaurantModal = () => {
+    setShowAddRestaurantModal(false)
+    setNewRestaurant({ name: '', address: '' })
+    setMapSearchKeyword('')
+    setMapSearchResults([])
+  }
+
+  // 高德地图API搜索餐厅
+  const handleMapSearch = async () => {
+    if (!mapSearchKeyword) {
+      toast.error('请输入搜索关键词');
+      return;
+    }
+
+    setMapSearchLoading(true);
+    try {
+      // 使用用户提供的高德地图API密钥
+      const apiKey = '05092903c58df9f2785f8478d5acaf60';
+      const url = `https://restapi.amap.com/v3/place/text?keywords=${encodeURIComponent(mapSearchKeyword)}&types=050100&city=广州&output=json&key=${apiKey}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      // 打印返回数据，方便调试
+      console.log('高德地图API返回数据:', data);
+      
+      if (data.status === '1' && data.pois && data.pois.length > 0) {
+        const results = data.pois.map((poi: any) => ({
+          name: poi.name,
+          address: poi.address || poi.location || '地址信息缺失'
+        }));
+        setMapSearchResults(results);
+      } else {
+        setMapSearchResults([]);
+        // 显示具体的错误信息
+        if (data.info) {
+          toast.error(`搜索失败: ${data.info}`);
+        } else if (data.pois && data.pois.length === 0) {
+          toast.error('未找到相关餐厅');
+        } else {
+          toast.error('搜索失败，请稍后重试');
+        }
+      }
+    } catch (error) {
+      console.error('地图搜索失败', error);
+      setMapSearchResults([]);
+      toast.error('搜索失败，请稍后重试');
+    } finally {
+      setMapSearchLoading(false);
+    }
+  }
+
+  // 从地图搜索结果中选择餐厅
+  const handleSelectRestaurant = (restaurant: {name: string, address: string}) => {
+    setNewRestaurant(restaurant);
+    setMapSearchResults([]);
+    setMapSearchKeyword('');
+  }
+
+  // 处理删除餐厅
+  const handleRemoveRestaurant = (index: number) => {
+    const updatedRestaurants = [...formData.restaurants]
+    updatedRestaurants.splice(index, 1)
+    setFormData({
+      ...formData,
+      restaurants: updatedRestaurants
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -149,6 +302,7 @@ const FoodPage = () => {
         })
         if (res.data.success) {
           setShowAddModal(false)
+          toast.success('更新美食成功')
           fetchFoods()
         }
       } else {
@@ -157,11 +311,13 @@ const FoodPage = () => {
         })
         if (res.data.success) {
           setShowAddModal(false)
+          toast.success('添加美食成功')
           fetchFoods()
         }
       }
     } catch (error) {
       console.error('保存美食失败', error)
+      toast.error('保存美食失败，请稍后重试')
     }
   }
 
@@ -176,6 +332,7 @@ const FoodPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         <div className="mb-4">
           <Link href="/admin" className="text-gray-600 hover:text-red-600 flex items-center">
             <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -287,6 +444,37 @@ const FoodPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      图片
+                    </label>
+                    <div className="mb-4">
+                      <div className="flex flex-col items-center mb-4">
+                        <div className="relative">
+                          <div className="w-48 h-32 bg-gray-100 rounded-md flex items-center justify-center">
+                            <img 
+                              src={formData.images.length > 0 ? formData.images[0] : "/moren_attractions-image/moren_attractions-image.jpg"} 
+                              alt="美食图片" 
+                              className="w-full h-full object-cover rounded-md"
+                            />
+                          </div>
+                          <label className="absolute bottom-2 right-2 bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              disabled={uploadLoading}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                        {uploadLoading && <p className="text-xs text-gray-500 mt-2">上传中...</p>}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       描述
                     </label>
                     <textarea
@@ -296,6 +484,38 @@ const FoodPage = () => {
                       rows={3}
                       required
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      推荐餐厅
+                    </label>
+                    <div className="mb-4">
+                      {/* 现有餐厅列表 */}
+                      {formData.restaurants.map((restaurant, index) => (
+                        <div key={index} className="flex items-center space-x-2 mb-2 p-2 border border-gray-200 rounded-md">
+                          <div className="flex-1">
+                            <div className="font-medium">{restaurant.name}</div>
+                            <div className="text-sm text-gray-600">{restaurant.address}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRestaurant(index)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      ))}
+                      
+                      {/* 添加新餐厅按钮 */}
+                      <button
+                        type="button"
+                        onClick={openAddRestaurantModal}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                      >
+                        添加餐厅
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -314,7 +534,11 @@ const FoodPage = () => {
                 <div className="mt-6 flex justify-end space-x-3">
                   <button
                     type="button"
-                    onClick={() => setShowAddModal(false)}
+                    onClick={() => {
+                      setShowAddModal(false)
+                      // 清空新添加的餐厅信息
+                      setNewRestaurant({ name: '', address: '' })
+                    }}
                     className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     取消
@@ -327,6 +551,81 @@ const FoodPage = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        
+        {/* 添加餐厅弹窗 */}
+        {showAddRestaurantModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+              <h2 className="text-xl font-bold mb-4">添加餐厅</h2>
+              
+              {/* 地图搜索界面 */}
+              <div className="p-3 border border-gray-200 rounded-md">
+                <h5 className="text-sm font-medium text-gray-700 mb-2">高德地图搜索</h5>
+                <div className="flex space-x-2 mb-3">
+                  <input
+                    type="text"
+                    value={mapSearchKeyword}
+                    onChange={(e) => setMapSearchKeyword(e.target.value)}
+                    placeholder="输入餐厅名称或关键词"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleMapSearch}
+                    disabled={mapSearchLoading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm disabled:opacity-50"
+                  >
+                    {mapSearchLoading ? '搜索中...' : '搜索'}
+                  </button>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {mapSearchResults.length > 0 ? (
+                    mapSearchResults.map((restaurant, index) => (
+                      <div 
+                        key={index} 
+                        className="p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleSelectRestaurant(restaurant)}
+                      >
+                        <div className="font-medium">{restaurant.name}</div>
+                        <div className="text-sm text-gray-600">{restaurant.address}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-gray-500 text-center py-4">
+                      {mapSearchLoading ? '搜索中...' : '暂无搜索结果'}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* 选中的餐厅信息 */}
+              {newRestaurant.name && (
+                <div className="mt-4 p-3 border border-green-200 bg-green-50 rounded-md">
+                  <h5 className="text-sm font-medium text-green-700 mb-2">已选中餐厅</h5>
+                  <div className="font-medium">{newRestaurant.name}</div>
+                  <div className="text-sm text-gray-600">{newRestaurant.address}</div>
+                </div>
+              )}
+              
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={closeAddRestaurantModal}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddRestaurant}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  添加餐厅
+                </button>
+              </div>
             </div>
           </div>
         )}

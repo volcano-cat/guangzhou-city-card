@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
+import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -50,6 +51,17 @@ export default function RootLayout({
             </svg>
           </div>
         </a>
+        {/* Sonner 消息提示 */}
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            style: {
+              fontSize: '16px',
+              padding: '16px 20px',
+              minHeight: '60px'
+            }
+          }}
+        />
       </body>
     </html>
   )

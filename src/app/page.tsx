@@ -1,7 +1,10 @@
-﻿import Image from 'next/image'
+﻿'use client'
+
+import Image from 'next/image'
 import Link from 'next/link'
 
 export default function HomePage() {
+
   return (
     <main>
       {/* Hero Section */}

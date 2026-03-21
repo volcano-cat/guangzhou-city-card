@@ -1,10 +1,11 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -14,15 +15,13 @@ export default function LoginPage() {
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLocalLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     
     if (!email || !password) {
-      setError('请输入邮箱和密码')
+      toast.error('请输入邮箱和密码')
       return
     }
 
@@ -36,10 +35,10 @@ export default function LoginPage() {
         axios.defaults.headers.common['Authorization'] = 'Bearer ' + res.data.data.token
         router.push(redirect)
       } else {
-        setError(res.data.error || '登录失败')
+        toast.error(res.data.error || '登录失败')
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || '登录失败，请稍后重试')
+      toast.error(err.response?.data?.error || '登录失败，请稍后重试')
     } finally {
       setLocalLoading(false)
     }
@@ -61,11 +60,7 @@ export default function LoginPage() {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+
           
           <div className="space-y-4">
             <div>

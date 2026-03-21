@@ -5,13 +5,22 @@ import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 
 const AdminPage = () => {
-  const { user } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const router = useRouter()
 
   // 检查用户是否为管理员
-  if (!user || user.role !== 'ADMIN') {
-    router.push('/')
-    return null
+  if (!isLoading) {
+    if (!user || user.role !== 'ADMIN') {
+      router.push('/')
+      return null
+    }
+  } else {
+    // 加载中，显示加载状态
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+      </div>
+    )
   }
 
   const menuItems = [

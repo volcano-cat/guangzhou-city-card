@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth'
 
 const navigation = [
   { name: '首页', href: '/' },
+  { name: '新闻', href: '/news' },
   { name: '景点', href: '/attractions' },
   { name: '美食', href: '/food' },
   { name: '文化', href: '/culture' },

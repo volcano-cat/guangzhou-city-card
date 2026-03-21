@@ -60,7 +60,7 @@ export default function FoodPage() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        pageSize: "12",
+        pageSize: "8",
       })
 
       if (selectedCategory) {
@@ -69,6 +69,9 @@ export default function FoodPage() {
       if (searchKeyword) {
         params.append("keyword", searchKeyword)
       }
+      // 按评分高到低排序
+      params.append("sortBy", "rating")
+      params.append("sortOrder", "desc")
 
       const res = await axios.get("/api/foods?" + params.toString())
       if (res.data.success) {
@@ -174,9 +177,17 @@ export default function FoodPage() {
                 className="card group bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
               >
                 <div className="relative h-48 bg-gray-200">
-                  <div className="h-48 bg-gradient-to-r from-orange-400 to-red-500 flex items-center justify-center">
-                    <span className="text-6xl">🍜</span>
-                  </div>
+                  {food.images && food.images.length > 0 ? (
+                    <img
+                      src={food.images[0]}
+                      alt={food.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-48 bg-gradient-to-r from-orange-400 to-red-500 flex items-center justify-center">
+                      <span className="text-6xl">🍜</span>
+                    </div>
+                  )}
                   <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded text-sm">
                     {food.category.name}
                   </div>
@@ -197,7 +208,7 @@ export default function FoodPage() {
                       >
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                       </svg>
-                      {food.rating || "暂无"}
+                      {food.rating ? Number(food.rating).toFixed(1) : "暂无"}
                     </div>
                     <div className="flex items-center space-x-3">
                       <span className="flex items-center">

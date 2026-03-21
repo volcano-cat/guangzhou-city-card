@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { toast } from 'sonner'
 
 interface Category {
   id: number
@@ -30,7 +31,7 @@ interface Attraction {
 }
 
 const AttractionsPage = () => {
-  const { user, token } = useAuthStore()
+  const { user, token, isLoading } = useAuthStore()
   const router = useRouter()
   const [attractions, setAttractions] = useState<Attraction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -41,12 +42,13 @@ const AttractionsPage = () => {
     name: '',
     description: '',
     address: '',
-    images: [],
+    images: [] as string[],
     openTime: '',
     ticketInfo: '',
     categoryId: 0,
     status: 'PUBLISHED'
   })
+  const [uploadLoading, setUploadLoading] = useState(false)
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -56,22 +58,26 @@ const AttractionsPage = () => {
 
   // 检查用户是否为管理员
   useEffect(() => {
-    if (user !== undefined) {
+    if (!isLoading) {
       if (!user || user.role !== 'ADMIN') {
         router.push('/')
       }
     }
-  }, [user, router])
+  }, [user, router, isLoading])
 
   // 获取景点列表
   useEffect(() => {
-    fetchAttractions()
-  }, [pagination.page, pagination.pageSize])
+    if (token) {
+      fetchAttractions()
+    }
+  }, [pagination.page, pagination.pageSize, token])
 
   // 获取分类列表
   useEffect(() => {
-    fetchCategories()
-  }, [])
+    if (token) {
+      fetchCategories()
+    }
+  }, [token])
 
   const fetchAttractions = async () => {
     setLoading(true)
@@ -112,7 +118,7 @@ const AttractionsPage = () => {
       images: [],
       openTime: '',
       ticketInfo: '',
-      categoryId: categories[0]?.id || 0,
+      categoryId: categories.length > 0 ? categories[0].id : 0,
       status: 'PUBLISHED'
     })
     setShowAddModal(true)
@@ -124,7 +130,7 @@ const AttractionsPage = () => {
       name: attraction.name,
       description: attraction.description,
       address: attraction.address,
-      images: attraction.images || [],
+      images: Array.isArray(attraction.images) ? attraction.images : [],
       openTime: attraction.openTime || '',
       ticketInfo: attraction.ticketInfo || '',
       categoryId: attraction.category.id,
@@ -148,6 +154,35 @@ const AttractionsPage = () => {
     }
   }
 
+  // 处理图片上传
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadLoading(true)
+    try {
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+
+      const res = await axios.post('/api/upload/attraction-image', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: 'Bearer ' + token
+        }
+      })
+
+      if (res.data.success) {
+        setFormData({ ...formData, images: [res.data.data.url] })
+      }
+    } catch (error) {
+      console.error('上传图片失败', error)
+    } finally {
+      setUploadLoading(false)
+    }
+  }
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -157,6 +192,7 @@ const AttractionsPage = () => {
         })
         if (res.data.success) {
           setShowAddModal(false)
+          toast.success('更新景点成功')
           fetchAttractions()
         }
       } else {
@@ -165,11 +201,13 @@ const AttractionsPage = () => {
         })
         if (res.data.success) {
           setShowAddModal(false)
+          toast.success('添加景点成功')
           fetchAttractions()
         }
       }
     } catch (error) {
       console.error('保存景点失败', error)
+      toast.error('保存景点失败，请稍后重试')
     }
   }
 
@@ -184,6 +222,7 @@ const AttractionsPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         <div className="mb-4">
           <Link href="/admin" className="text-gray-600 hover:text-red-600 flex items-center">
             <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -313,6 +352,37 @@ const AttractionsPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      图片
+                    </label>
+                    <div className="mb-4">
+                      <div className="flex flex-col items-center mb-4">
+                        <div className="relative">
+                          <div className="w-48 h-32 bg-gray-100 rounded-md flex items-center justify-center">
+                            <img 
+                              src={formData.images.length > 0 ? formData.images[0] : "/moren_attractions-image/moren_attractions-image.jpg"} 
+                              alt="景点图片" 
+                              className="w-full h-full object-cover rounded-md"
+                            />
+                          </div>
+                          <label className="absolute bottom-2 right-2 bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              disabled={uploadLoading}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                        {uploadLoading && <p className="text-xs text-gray-500 mt-2">上传中...</p>}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       描述
                     </label>
                     <textarea
@@ -327,12 +397,31 @@ const AttractionsPage = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       开放时间
                     </label>
-                    <input
-                      type="text"
-                      value={formData.openTime}
-                      onChange={(e) => setFormData({ ...formData, openTime: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="time"
+                        value={formData.openTime.split('-')[0] || ''}
+                        onChange={(e) => {
+                          const endTime = formData.openTime.split('-')[1] || '';
+                          setFormData({ ...formData, openTime: `${e.target.value}-${endTime}` });
+                        }}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="开始时间"
+                        step="60"
+                      />
+                      <span className="text-gray-500">至</span>
+                      <input
+                        type="time"
+                        value={formData.openTime.split('-')[1] || ''}
+                        onChange={(e) => {
+                          const startTime = formData.openTime.split('-')[0] || '';
+                          setFormData({ ...formData, openTime: `${startTime}-${e.target.value}` });
+                        }}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="结束时间"
+                        step="60"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

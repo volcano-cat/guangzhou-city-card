@@ -1,10 +1,11 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { toast } from 'sonner'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -14,25 +15,23 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [nickname, setNickname] = useState('')
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     
     if (!email || !password) {
-      setError('请输入邮箱和密码')
+      toast.error('请输入邮箱和密码')
       return
     }
 
     if (password.length < 6) {
-      setError('密码至少6位')
+      toast.error('密码至少6位')
       return
     }
 
     if (password !== confirmPassword) {
-      setError('两次输入的密码不一致')
+      toast.error('两次输入的密码不一致')
       return
     }
 
@@ -50,10 +49,10 @@ export default function RegisterPage() {
         axios.defaults.headers.common['Authorization'] = 'Bearer ' + res.data.data.token
         router.push('/')
       } else {
-        setError(res.data.error || '注册失败')
+        toast.error(res.data.error || '注册失败')
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || '注册失败，请稍后重试')
+      toast.error(err.response?.data?.error || '注册失败，请稍后重试')
     } finally {
       setLoading(false)
     }
@@ -75,11 +74,7 @@ export default function RegisterPage() {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+
           
           <div className="space-y-4">
             <div>

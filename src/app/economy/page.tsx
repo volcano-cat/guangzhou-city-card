@@ -1,4 +1,4 @@
-﻿export default function EconomyPage() {
+export default function EconomyPage() {
   const stats = [
     { label: 'GDP总量', value: '2.88万亿', unit: '元', year: '2023年' },
     { label: '常住人口', value: '1882.7', unit: '万人', year: '2023年' },
@@ -63,11 +63,15 @@
         <h2 className="text-2xl font-bold text-gray-900 mb-6">支柱产业</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {industries.map((industry, index) => (
-            <div key={index} className="card p-6">
+            <a 
+              key={index} 
+              href={`/economy/${index + 1}`}
+              className="card p-6 hover:shadow-lg transition-shadow duration-300"
+            >
               <div className="text-4xl mb-4">{industry.icon}</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">{industry.name}</h3>
               <p className="text-gray-600">{industry.description}</p>
-            </div>
+            </a>
           ))}
         </div>
       </div>

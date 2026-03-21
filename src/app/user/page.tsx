@@ -1,10 +1,11 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { toast } from 'sonner'
 
 interface AttractionFavorite {
   id: number
@@ -71,8 +72,6 @@ export default function UserPage() {
   })
   const [editLoading, setEditLoading] = useState(false)
   const [uploadLoading, setUploadLoading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-  const [messageType, setMessageType] = useState<'success' | 'error'>('success')
 
   useEffect(() => {
     if (!user && !authLoading) {
@@ -150,16 +149,11 @@ export default function UserPage() {
       if (res.data.success) {
         setUser(res.data.data)
         setIsEditModalOpen(false)
-        setMessage('修改资料成功')
-        setMessageType('success')
-        // 3秒后自动关闭消息
-        setTimeout(() => setMessage(null), 3000)
+        toast.success('修改资料成功')
       }
     } catch (error) {
       console.error('修改资料失败', error)
-      setMessage('修改资料失败，请稍后重试')
-      setMessageType('error')
-      setTimeout(() => setMessage(null), 3000)
+      toast.error('修改资料失败，请稍后重试')
     } finally {
       setEditLoading(false)
     }
@@ -167,24 +161,7 @@ export default function UserPage() {
 
   return (
     <>
-      {/* 消息提示 */}
-      {message && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-md shadow-lg ${messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-          <div className="flex items-center">
-            {messageType === 'success' ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-.633-1.964-.633-2.732 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            )}
-            <span>{message}</span>
-          </div>
-        </div>
-      )}
-      
+  
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-1">

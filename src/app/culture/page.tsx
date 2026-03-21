@@ -1,4 +1,4 @@
-﻿export default function CulturePage() {
+export default function CulturePage() {
   const cultures = [
     {
       title: '岭南文化',
@@ -43,11 +43,15 @@
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {cultures.map((culture, index) => (
-          <div key={index} className="card p-6">
+          <a 
+            key={index} 
+            href={`/culture/${index + 1}`}
+            className="card p-6 hover:shadow-lg transition-shadow duration-300"
+          >
             <div className="text-5xl mb-4">{culture.icon}</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">{culture.title}</h3>
             <p className="text-gray-600">{culture.description}</p>
-          </div>
+          </a>
         ))}
       </div>
 

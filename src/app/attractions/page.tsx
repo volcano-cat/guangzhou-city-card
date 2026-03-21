@@ -52,7 +52,7 @@ export default function AttractionsPage() {
     setLoading(true);
     const params = new URLSearchParams({
       page: page.toString(),
-      pageSize: "12",
+      pageSize: "8",
     });
 
     if (selectedCategory) {
@@ -61,6 +61,9 @@ export default function AttractionsPage() {
     if (searchKeyword) {
       params.append("keyword", searchKeyword);
     }
+    // 按评分高到低排序
+    params.append("sortBy", "rating");
+    params.append("sortOrder", "desc");
 
     axios
       .get("/api/attractions?" + params.toString())
@@ -172,25 +175,17 @@ export default function AttractionsPage() {
                 <div className="relative h-48 bg-gray-200">
                   {attraction.images && attraction.images.length > 0 ? (
                     <img
-                      src={`/images/attractions/${attraction.images[0]}`} 
+                      src={attraction.images[0]} 
                       alt={attraction.name}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                      <svg
-                        className="w-12 h-12"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
+                      <img
+                        src="/moren_attractions-image/moren_attractions-image.jpg"
+                        alt="默认图片"
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   )}
                   <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded text-sm">
@@ -213,7 +208,7 @@ export default function AttractionsPage() {
                       >
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                       </svg>
-                      {attraction.rating || "暂无"}
+                      {attraction.rating ? Number(attraction.rating).toFixed(1) : "暂无"}
                     </div>
                     <div className="flex items-center space-x-3">
                       <span className="flex items-center">

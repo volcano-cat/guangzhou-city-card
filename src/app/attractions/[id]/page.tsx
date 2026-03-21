@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { toast } from 'sonner'
 
 interface Comment {
   id: number
@@ -65,7 +66,39 @@ export default function AttractionDetailPage() {
     if (params.id) {
       fetchAttraction()
     }
-  }, [params.id, sortBy, sortOrder])
+  }, [params.id])
+
+  // 当排序参数变化时，在本地重新排序评论
+  useEffect(() => {
+    if (attraction) {
+      let sortedComments = [...attraction.comments]
+      
+      // 根据排序参数进行前端排序
+      if (sortBy === '_count.likes') {
+        sortedComments.sort((a, b) => {
+          const likesA = a._count?.likes || 0
+          const likesB = b._count?.likes || 0
+          return sortOrder === 'desc' ? likesB - likesA : likesA - likesB
+        })
+      } else if (sortBy === 'createdAt') {
+        sortedComments.sort((a, b) => {
+          const dateA = new Date(a.createdAt).getTime()
+          const dateB = new Date(b.createdAt).getTime()
+          return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
+        })
+      }
+      
+      // 只有当评论顺序真正改变时才更新状态
+      const commentsChanged = JSON.stringify(attraction.comments) !== JSON.stringify(sortedComments)
+      if (commentsChanged) {
+        // 更新状态，使用排序后的评论
+        setAttraction({
+          ...attraction,
+          comments: sortedComments
+        })
+      }
+    }
+  }, [sortBy, sortOrder, attraction])
 
 
 
@@ -79,28 +112,8 @@ export default function AttractionDetailPage() {
       
       const res = await axios.get('/api/attractions/' + params.id, { headers })
       if (res.data.success) {
-        let sortedComments = [...res.data.data.comments]
-        
-        // 根据排序参数进行前端排序
-        if (sortBy === '_count.likes') {
-          sortedComments.sort((a, b) => {
-            const likesA = a._count?.likes || 0
-            const likesB = b._count?.likes || 0
-            return sortOrder === 'desc' ? likesB - likesA : likesA - likesB
-          })
-        } else if (sortBy === 'createdAt') {
-          sortedComments.sort((a, b) => {
-            const dateA = new Date(a.createdAt).getTime()
-            const dateB = new Date(b.createdAt).getTime()
-            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
-          })
-        }
-        
-        // 更新状态，使用排序后的评论
-        setAttraction({
-          ...res.data.data,
-          comments: sortedComments
-        })
+        // 直接设置原始评论数据，排序由单独的 useEffect 处理
+        setAttraction(res.data.data)
         setIsFavorited(res.data.data.isFavorited)
       }
     } catch (error) {
@@ -155,7 +168,7 @@ export default function AttractionDetailPage() {
     }
 
     if (!commentContent.trim()) {
-      alert('请输入评论内容')
+      toast.error('请输入评论内容')
       return
     }
 
@@ -168,7 +181,53 @@ export default function AttractionDetailPage() {
       )
       if (res.data.success) {
         setCommentContent('')
-        fetchAttraction()
+        // 直接更新评论列表，而不是重新获取整个景点信息
+        if (attraction) {
+          // 构建新评论对象
+          const newComment = {
+            id: res.data.data.id,
+            content: commentContent,
+            rating: commentRating,
+            createdAt: new Date().toISOString(),
+            user: {
+              id: user.id,
+              nickname: user.nickname,
+              avatar: user.avatar
+            },
+            replies: [],
+            _count: {
+              likes: 0,
+              replies: 0
+            },
+            isLiked: false
+          }
+          // 添加到评论列表
+          const updatedComments = [newComment, ...attraction.comments]
+          // 重新排序
+          let sortedComments = [...updatedComments]
+          if (sortBy === '_count.likes') {
+            sortedComments.sort((a, b) => {
+              const likesA = a._count?.likes || 0
+              const likesB = b._count?.likes || 0
+              return sortOrder === 'desc' ? likesB - likesA : likesA - likesB
+            })
+          } else if (sortBy === 'createdAt') {
+            sortedComments.sort((a, b) => {
+              const dateA = new Date(a.createdAt).getTime()
+              const dateB = new Date(b.createdAt).getTime()
+              return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
+            })
+          }
+          // 更新状态
+          setAttraction({
+            ...attraction,
+            comments: sortedComments,
+            _count: {
+              ...attraction._count,
+              comments: attraction._count.comments + 1
+            }
+          })
+        }
       }
     } catch (error) {
       console.error('评论失败', error)
@@ -184,7 +243,7 @@ export default function AttractionDetailPage() {
     }
 
     if (!replyContent.trim()) {
-      alert('请输入回复内容')
+      toast.error('请输入回复内容')
       return
     }
 
@@ -198,7 +257,46 @@ export default function AttractionDetailPage() {
       if (res.data.success) {
         setReplyContent('')
         setReplyingTo(null)
-        fetchAttraction()
+        // 直接更新评论列表，而不是重新获取整个景点信息
+        if (attraction) {
+          // 构建新回复对象
+          const newReply = {
+            id: res.data.data.id,
+            content: replyContent,
+            rating: null,
+            createdAt: new Date().toISOString(),
+            user: {
+              id: user.id,
+              nickname: user.nickname,
+              avatar: user.avatar
+            },
+            replies: [],
+            _count: {
+              likes: 0,
+              replies: 0
+            },
+            isLiked: false
+          }
+          // 找到父评论并添加回复
+          const updatedComments = attraction.comments.map(comment => {
+            if (comment.id === parentId) {
+              return {
+                ...comment,
+                replies: [...comment.replies, newReply],
+                _count: {
+                  ...comment._count,
+                  replies: comment._count.replies + 1
+                }
+              }
+            }
+            return comment
+          })
+          // 更新状态
+          setAttraction({
+            ...attraction,
+            comments: updatedComments
+          })
+        }
       }
     } catch (error) {
       console.error('回复失败', error)
@@ -220,7 +318,48 @@ export default function AttractionDetailPage() {
         { headers: { Authorization: 'Bearer ' + token } }
       )
       if (res.data.success) {
-        fetchAttraction()
+        // 直接更新评论列表，而不是重新获取整个景点信息
+        if (attraction) {
+          // 找到评论并更新点赞状态
+          const updatedComments = attraction.comments.map(comment => {
+            // 检查当前评论
+            if (comment.id === commentId) {
+              return {
+                ...comment,
+                isLiked: true,
+                _count: {
+                  ...comment._count,
+                  likes: comment._count.likes + 1
+                }
+              }
+            }
+            // 检查回复
+            if (comment.replies.length > 0) {
+              return {
+                ...comment,
+                replies: comment.replies.map(reply => {
+                  if (reply.id === commentId) {
+                    return {
+                      ...reply,
+                      isLiked: true,
+                      _count: {
+                        ...reply._count,
+                        likes: reply._count.likes + 1
+                      }
+                    }
+                  }
+                  return reply
+                })
+              }
+            }
+            return comment
+          })
+          // 更新状态
+          setAttraction({
+            ...attraction,
+            comments: updatedComments
+          })
+        }
       }
     } catch (error) {
       console.error('点赞失败', error)
@@ -239,7 +378,48 @@ export default function AttractionDetailPage() {
         { headers: { Authorization: 'Bearer ' + token } }
       )
       if (res.data.success) {
-        fetchAttraction()
+        // 直接更新评论列表，而不是重新获取整个景点信息
+        if (attraction) {
+          // 找到评论并更新点赞状态
+          const updatedComments = attraction.comments.map(comment => {
+            // 检查当前评论
+            if (comment.id === commentId) {
+              return {
+                ...comment,
+                isLiked: false,
+                _count: {
+                  ...comment._count,
+                  likes: Math.max(0, comment._count.likes - 1)
+                }
+              }
+            }
+            // 检查回复
+            if (comment.replies.length > 0) {
+              return {
+                ...comment,
+                replies: comment.replies.map(reply => {
+                  if (reply.id === commentId) {
+                    return {
+                      ...reply,
+                      isLiked: false,
+                      _count: {
+                        ...reply._count,
+                        likes: Math.max(0, reply._count.likes - 1)
+                      }
+                    }
+                  }
+                  return reply
+                })
+              }
+            }
+            return comment
+          })
+          // 更新状态
+          setAttraction({
+            ...attraction,
+            comments: updatedComments
+          })
+        }
       }
     } catch (error) {
       console.error('取消点赞失败', error)
@@ -280,9 +460,19 @@ export default function AttractionDetailPage() {
         <div className="lg:col-span-2">
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="h-64 md:h-96 bg-gray-200 flex items-center justify-center">
-              <svg className="w-20 h-20 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+              {attraction.images && attraction.images.length > 0 ? (
+                <img
+                  src={attraction.images[0]}
+                  alt={attraction.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <img
+                  src="/moren_attractions-image/moren_attractions-image.jpg"
+                  alt="默认图片"
+                  className="w-full h-full object-cover"
+                />
+              )}
             </div>
             
             <div className="p-6">
@@ -309,7 +499,7 @@ export default function AttractionDetailPage() {
                   <svg className="w-4 h-4 text-yellow-400 mr-1" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
-                  {attraction.rating || '暂无评分'}
+                  {attraction.rating ? Number(attraction.rating).toFixed(1) : '暂无评分'}
                 </span>
                 <span>{attraction.viewCount} 次浏览</span>
                 <span>{attraction._count.favorites} 人收藏</span>
