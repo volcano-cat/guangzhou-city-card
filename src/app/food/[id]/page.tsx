@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
@@ -52,7 +53,7 @@ interface Food {
 export default function FoodDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { user, token } = useAuthStore()
+  const { user } = useAuthStore()
   const [food, setFood] = useState<Food | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorited, setIsFavorited] = useState(false)
@@ -108,11 +109,7 @@ export default function FoodDetailPage() {
   const fetchFood = async () => {
     setLoading(true)
     try {
-      const headers: any = {}
-      if (token) {
-        headers['Authorization'] = 'Bearer ' + token
-      }
-      const res = await axios.get('/api/foods/' + params.id, { headers })
+      const res = await axios.get('/api/foods/' + params.id)
       if (res.data.success) {
         // 直接设置原始评论数据，排序由单独的 useEffect 处理
         setFood(res.data.data)
@@ -133,14 +130,10 @@ export default function FoodDetailPage() {
 
     try {
       if (isFavorited) {
-        await axios.delete('/api/foods/' + params.id + '/favorite', {
-          headers: { Authorization: 'Bearer ' + token }
-        })
+        await axios.delete('/api/foods/' + params.id + '/favorite', { withCredentials: true })
         setIsFavorited(false)
       } else {
-        await axios.post('/api/foods/' + params.id + '/favorite', {}, {
-          headers: { Authorization: 'Bearer ' + token }
-        })
+        await axios.post('/api/foods/' + params.id + '/favorite', {}, { withCredentials: true })
         setIsFavorited(true)
       }
     } catch (error) {
@@ -164,7 +157,7 @@ export default function FoodDetailPage() {
       const res = await axios.post(
         '/api/foods/' + params.id + '/comments',
         { content: commentContent, rating: commentRating },
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         setCommentContent('')
@@ -239,7 +232,7 @@ export default function FoodDetailPage() {
       const res = await axios.post(
         '/api/foods/' + params.id + '/comments',
         { content: replyContent, parentId },
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         setReplyContent('')
@@ -302,7 +295,7 @@ export default function FoodDetailPage() {
       const res = await axios.post(
         '/api/foods/' + params.id + '/comments/' + commentId + '/like',
         {},
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         // 直接更新评论列表，而不是重新获取整个美食信息
@@ -362,7 +355,7 @@ export default function FoodDetailPage() {
     try {
       const res = await axios.delete(
         '/api/foods/' + params.id + '/comments/' + commentId + '/like',
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         // 直接更新评论列表，而不是重新获取整个美食信息
@@ -608,16 +601,18 @@ export default function FoodDetailPage() {
                   <div key={comment.id} className="border-b border-gray-100 pb-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full overflow-hidden">
-                          <img 
-                            src={comment.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
-                            alt="用户头像" 
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <span className="ml-2 font-medium text-gray-900">
-                          {comment.user.nickname || '匿名用户'}
-                        </span>
+                        <Link href={`/users/${comment.user.id}`} className="flex items-center">
+                          <div className="w-8 h-8 rounded-full overflow-hidden">
+                            <img 
+                              src={comment.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                              alt="用户头像" 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <span className="ml-2 font-medium text-gray-900 hover:text-red-600 transition-colors">
+                            {comment.user.nickname || '匿名用户'}
+                          </span>
+                        </Link>
                       </div>
                       <div className="flex items-center">
                         {comment.rating && (
@@ -703,18 +698,20 @@ export default function FoodDetailPage() {
                         {comment.replies.map((reply) => (
                           <div key={reply.id} className="border-l-2 border-gray-200 pl-4 py-2">
                             <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center">
-                                <div className="w-6 h-6 rounded-full overflow-hidden">
-                                  <img 
-                                    src={reply.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
-                                    alt="用户头像" 
-                                    className="w-full h-full object-cover"
-                                  />
+                                <div className="flex items-center">
+                                  <Link href={`/users/${reply.user.id}`} className="flex items-center">
+                                    <div className="w-6 h-6 rounded-full overflow-hidden">
+                                      <img 
+                                        src={reply.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                                        alt="用户头像" 
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                    <span className="ml-2 text-sm font-medium text-gray-900 hover:text-red-600 transition-colors">
+                                      {reply.user.nickname || '匿名用户'}
+                                    </span>
+                                  </Link>
                                 </div>
-                                <span className="ml-2 text-sm font-medium text-gray-900">
-                                  {reply.user.nickname || '匿名用户'}
-                                </span>
-                              </div>
                               <div className="flex items-center">
                                 <span className="text-xs text-gray-500 mr-3">
                                   {new Date(reply.createdAt).toLocaleDateString()}

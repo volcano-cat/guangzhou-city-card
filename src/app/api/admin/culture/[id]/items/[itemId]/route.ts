@@ -56,7 +56,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const { id, itemId } = params
     const body = await request.json()
-    const { name, description, image, status } = body
+    console.log('更新文化项目请求数据:', body)
+    const { name, description, image, video, status } = body
 
     const culture = await prisma.culture.findUnique({
       where: { id: parseInt(id) }
@@ -77,14 +78,30 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return notFoundResponse('文化项目不存在')
     }
 
+    // 构建更新数据对象
+    const updateData: any = {}
+    
+    if (name !== undefined) {
+      updateData.name = name
+    }
+    if (description !== undefined) {
+      updateData.description = description
+    }
+    if (image !== undefined) {
+      updateData.image = image
+    }
+    if (video !== undefined) {
+      updateData.video = video
+    }
+    if (status !== undefined) {
+      updateData.status = status
+    }
+    
+    console.log('更新数据:', updateData)
+    
     const item = await prisma.cultureItem.update({
       where: { id: parseInt(itemId) },
-      data: {
-        name: name || existingItem.name,
-        description: description || existingItem.description,
-        image: image !== undefined ? image : existingItem.image,
-        status: status || existingItem.status
-      }
+      data: updateData
     })
 
     return successResponse(item, '更新文化项目成功')
@@ -128,11 +145,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // 删除相关的评论和收藏
-    await prisma.comment.deleteMany({
+    await prisma.cultureComment.deleteMany({
       where: { cultureItemId: parseInt(itemId) }
     })
 
-    await prisma.favorite.deleteMany({
+    await prisma.cultureFavorite.deleteMany({
       where: { cultureItemId: parseInt(itemId) }
     })
 

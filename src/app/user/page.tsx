@@ -33,6 +33,19 @@ interface FoodFavorite {
   }
 }
 
+interface CultureFavorite {
+  id: number
+  createdAt: string
+  cultureItem: {
+    id: number
+    name: string
+    description: string
+    culture: {
+      name: string
+    }
+  }
+}
+
 interface Pagination {
   page: number
   pageSize: number
@@ -50,27 +63,42 @@ interface FoodsData {
   pagination: Pagination
 }
 
+interface CulturesData {
+  list: CultureFavorite[]
+  pagination: Pagination
+}
+
 interface Favorites {
   attractions: AttractionsData
   foods: FoodsData
+  cultures: CulturesData
 }
 
 export default function UserPage() {
   const router = useRouter()
-  const { user, token, logout, isLoading: authLoading, setUser } = useAuthStore()
+  const { user, logout, isLoading: authLoading, setUser } = useAuthStore()
   const [favorites, setFavorites] = useState<Favorites>({
     attractions: { list: [], pagination: { page: 1, pageSize: 3, total: 0, totalPages: 0 } },
-    foods: { list: [], pagination: { page: 1, pageSize: 3, total: 0, totalPages: 0 } }
+    foods: { list: [], pagination: { page: 1, pageSize: 3, total: 0, totalPages: 0 } },
+    cultures: { list: [], pagination: { page: 1, pageSize: 3, total: 0, totalPages: 0 } }
   })
   const [loading, setLoading] = useState(true)
   const [attractionPage, setAttractionPage] = useState(1)
   const [foodPage, setFoodPage] = useState(1)
+  const [culturePage, setCulturePage] = useState(1)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   const [editForm, setEditForm] = useState({
     nickname: user?.nickname || '',
     avatar: user?.avatar || ''
   })
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
   const [editLoading, setEditLoading] = useState(false)
+  const [passwordLoading, setPasswordLoading] = useState(false)
   const [uploadLoading, setUploadLoading] = useState(false)
 
   useEffect(() => {
@@ -81,19 +109,26 @@ export default function UserPage() {
     if (user) {
       fetchFavorites()
     }
-  }, [user, authLoading, attractionPage, foodPage])
+  }, [user, authLoading, attractionPage, foodPage, culturePage])
 
   const fetchFavorites = async () => {
     try {
       const res = await axios.get('/api/users/favorites', {
         params: {
           attractionPage,
-          foodPage
+          foodPage,
+          culturePage
         },
-        headers: { Authorization: 'Bearer ' + token }
+        withCredentials: true
       })
       if (res.data.success) {
-        setFavorites(res.data.data)
+        setFavorites({
+          ...res.data.data,
+          cultures: res.data.data.cultures || {
+            list: [],
+            pagination: { page: 1, pageSize: 3, total: 0, totalPages: 0 }
+          }
+        })
       }
     } catch (error) {
       console.error('获取收藏失败', error)
@@ -123,9 +158,9 @@ export default function UserPage() {
 
       const res = await axios.post('/api/upload/image', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: 'Bearer ' + token
-        }
+          'Content-Type': 'multipart/form-data'
+        },
+        withCredentials: true
       })
 
       if (res.data.success) {
@@ -143,9 +178,7 @@ export default function UserPage() {
     e.preventDefault()
     setEditLoading(true)
     try {
-      const res = await axios.put('/api/users/profile', editForm, {
-        headers: { Authorization: 'Bearer ' + token }
-      })
+      const res = await axios.put('/api/users/profile', editForm, { withCredentials: true })
       if (res.data.success) {
         setUser(res.data.data)
         setIsEditModalOpen(false)
@@ -156,6 +189,41 @@ export default function UserPage() {
       toast.error('修改资料失败，请稍后重试')
     } finally {
       setEditLoading(false)
+    }
+  }
+
+  // 修改密码弹窗
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // 验证密码
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('两次输入的新密码不一致')
+      return
+    }
+    
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('新密码长度至少为6位')
+      return
+    }
+    
+    setPasswordLoading(true)
+    try {
+      const res = await axios.put('/api/users/password', passwordForm, { withCredentials: true })
+      if (res.data.success) {
+        setIsPasswordModalOpen(false)
+        setPasswordForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        })
+        toast.success('修改密码成功')
+      }
+    } catch (error: any) {
+      console.error('修改密码失败', error)
+      toast.error(error.response?.data?.message || '修改密码失败，请稍后重试')
+    } finally {
+      setPasswordLoading(false)
     }
   }
 
@@ -182,17 +250,23 @@ export default function UserPage() {
               
               <div className="mt-6 space-y-2">
                 <button
-                onClick={() => {
-                  setEditForm({
-                    nickname: user.nickname || '',
-                    avatar: user.avatar || ''
-                  })
-                  setIsEditModalOpen(true)
-                }}
-                className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-              >
-                修改资料
-              </button>
+                  onClick={() => {
+                    setEditForm({
+                      nickname: user.nickname || '',
+                      avatar: user.avatar || ''
+                    })
+                    setIsEditModalOpen(true)
+                  }}
+                  className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                >
+                  修改资料
+                </button>
+                <button
+                  onClick={() => setIsPasswordModalOpen(true)}
+                  className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                >
+                  修改密码
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -345,6 +419,77 @@ export default function UserPage() {
                 </>
               )}
             </div>
+
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">收藏的文化</h3>
+              
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                </div>
+              ) : favorites.cultures.list.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4">暂无收藏的文化</p>
+                  <Link href="/culture" className="btn-primary">
+                    去逛逛
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    {favorites.cultures.list.map((fav) => (
+                      <Link
+                        key={fav.id}
+                        href={`/culture/${fav.cultureItem.culture.name}/${fav.cultureItem.id}`}
+                        className="block border border-gray-200 rounded-lg p-4 hover:border-red-300 hover:shadow-sm transition-all"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 hover:text-red-600">
+                              {fav.cultureItem.name}
+                            </h4>
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                              {fav.cultureItem.description}
+                            </p>
+                            <span className="inline-block mt-2 text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                              {fav.cultureItem.culture.name}
+                            </span>
+                          </div>
+                          <span className="text-sm text-gray-400">
+                            {new Date(fav.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  
+                  {/* 文化分页 */}
+                  {favorites.cultures.pagination.totalPages > 1 && (
+                    <div className="flex justify-center mt-6">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setCulturePage(Math.max(1, culturePage - 1))}
+                          disabled={culturePage === 1}
+                          className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          上一页
+                        </button>
+                        <span className="text-sm text-gray-600">
+                          {favorites.cultures.pagination.page} / {favorites.cultures.pagination.totalPages}
+                        </span>
+                        <button
+                          onClick={() => setCulturePage(Math.min(favorites.cultures.pagination.totalPages, culturePage + 1))}
+                          disabled={culturePage === favorites.cultures.pagination.totalPages}
+                          className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          下一页
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -408,6 +553,73 @@ export default function UserPage() {
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {editLoading ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 修改密码弹窗 */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+            <h3 className="text-xl font-semibold text-gray-900 mb-6 text-center">修改密码</h3>
+            <form onSubmit={handlePasswordSubmit}>
+              {/* 当前密码 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">当前密码</label>
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="请输入当前密码"
+                  required
+                />
+              </div>
+              
+              {/* 新密码 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">新密码</label>
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="请输入新密码"
+                  required
+                />
+              </div>
+              
+              {/* 确认新密码 */}
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="请再次输入新密码"
+                  required
+                />
+              </div>
+              
+              {/* 按钮 */}
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {passwordLoading ? '保存中...' : '保存'}
                 </button>
               </div>
             </form>

@@ -29,7 +29,7 @@ interface Food {
 }
 
 const FoodPage = () => {
-  const { user, token, isLoading } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const router = useRouter()
   const [foods, setFoods] = useState<Food[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -68,24 +68,22 @@ const FoodPage = () => {
 
   // 获取美食列表
   useEffect(() => {
-    if (token) {
+    if (user) {
       fetchFoods()
     }
-  }, [pagination.page, pagination.pageSize, token])
+  }, [pagination.page, pagination.pageSize, user])
 
   // 获取分类列表
   useEffect(() => {
-    if (token) {
+    if (user) {
       fetchCategories()
     }
-  }, [token])
+  }, [user])
 
   const fetchFoods = async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`/api/admin/food?page=${pagination.page}&pageSize=${pagination.pageSize}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get(`/api/admin/food?page=${pagination.page}&pageSize=${pagination.pageSize}`)
       if (res.data.success) {
         setFoods(res.data.data.data)
         setPagination(res.data.data.pagination)
@@ -99,9 +97,7 @@ const FoodPage = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get('/api/admin/categories?type=food', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get('/api/admin/categories?type=food')
       if (res.data.success) {
         setCategories(res.data.data)
       }
@@ -156,9 +152,7 @@ const FoodPage = () => {
   const handleDeleteFood = async (id: number) => {
     if (confirm('确定要删除这个美食吗？')) {
       try {
-        const res = await axios.delete(`/api/admin/food/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.delete(`/api/admin/food/${id}`)
         if (res.data.success) {
           fetchFoods()
         }
@@ -180,8 +174,7 @@ const FoodPage = () => {
 
       const res = await axios.post('/api/upload/food-image', uploadFormData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: 'Bearer ' + token
+          'Content-Type': 'multipart/form-data'
         }
       })
 
@@ -297,18 +290,14 @@ const FoodPage = () => {
     e.preventDefault()
     try {
       if (editingFood) {
-        const res = await axios.put(`/api/admin/food/${editingFood.id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.put(`/api/admin/food/${editingFood.id}`, formData)
         if (res.data.success) {
           setShowAddModal(false)
           toast.success('更新美食成功')
           fetchFoods()
         }
       } else {
-        const res = await axios.post('/api/admin/food', formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.post('/api/admin/food', formData)
         if (res.data.success) {
           setShowAddModal(false)
           toast.success('添加美食成功')
@@ -356,6 +345,9 @@ const FoodPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  图片
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   美食名称
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -372,6 +364,13 @@ const FoodPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {foods.map((food) => (
                 <tr key={food.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <img 
+                      src={Array.isArray(food.images) && food.images.length > 0 ? food.images[0] : "/moren_attractions-image/moren_attractions-image.jpg"} 
+                      alt={food.name}
+                      className="w-16 h-16 object-cover rounded-md"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{food.name}</div>
                   </td>

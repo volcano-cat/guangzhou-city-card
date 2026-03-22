@@ -71,7 +71,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const { id } = params
     const body = await request.json()
-    const { name, description, image, status } = body
+    console.log('创建文化项目请求数据:', body)
+    const { name, description, image, video, status } = body
 
     if (!name || !description) {
       return errorResponse('缺少必填字段')
@@ -85,14 +86,27 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return notFoundResponse('文化分类不存在')
     }
 
+    // 构建创建数据对象
+    const createData: any = {
+      name,
+      description,
+      cultureId: parseInt(id)
+    }
+    
+    if (image !== undefined) {
+      createData.image = image || null
+    }
+    if (video !== undefined) {
+      createData.video = video || null
+    }
+    if (status !== undefined) {
+      createData.status = status || 'PUBLISHED'
+    }
+    
+    console.log('创建数据:', createData)
+    
     const item = await prisma.cultureItem.create({
-      data: {
-        name,
-        description,
-        image: image || null,
-        status: status || 'PUBLISHED',
-        cultureId: parseInt(id)
-      }
+      data: createData
     })
 
     return successResponse(item, '创建文化项目成功')

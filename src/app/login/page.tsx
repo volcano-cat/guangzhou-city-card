@@ -11,7 +11,7 @@ export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/'
-  const { setUser, setToken, setLoading } = useAuthStore()
+  const { setUser } = useAuthStore()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -27,12 +27,11 @@ export default function LoginPage() {
 
     setLocalLoading(true)
     try {
-      const res = await axios.post('/api/auth/login', { email, password })
+      const res = await axios.post('/api/auth/login', { email, password }, { withCredentials: true })
       
       if (res.data.success) {
         setUser(res.data.data.user)
-        setToken(res.data.data.token)
-        axios.defaults.headers.common['Authorization'] = 'Bearer ' + res.data.data.token
+        // 不再需要手动设置 token，因为已经存储在 cookie 中
         router.push(redirect)
       } else {
         toast.error(res.data.error || '登录失败')
@@ -95,6 +94,11 @@ export default function LoginPage() {
                 className="input"
                 placeholder="请输入密码"
               />
+            </div>
+            <div className="text-right">
+              <Link href="/forgot-password" className="text-sm text-red-600 hover:text-red-500">
+                忘记密码？
+              </Link>
             </div>
           </div>
 

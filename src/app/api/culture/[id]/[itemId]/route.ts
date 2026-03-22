@@ -66,8 +66,21 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       }
     })
 
-    if (!cultureItem || cultureItem.status !== 'PUBLISHED' || cultureItem.culture.status !== 'PUBLISHED') {
+    if (!cultureItem) {
       return notFoundResponse('文化项目不存在')
+    }
+    
+    // 检查状态
+    if (cultureItem.status !== 'PUBLISHED') {
+      return notFoundResponse('文化项目未发布')
+    }
+    
+    if (!cultureItem.culture) {
+      return notFoundResponse('文化分类不存在')
+    }
+    
+    if (cultureItem.culture.status !== 'PUBLISHED') {
+      return notFoundResponse('文化分类未发布')
     }
 
     // 检查是否已收藏

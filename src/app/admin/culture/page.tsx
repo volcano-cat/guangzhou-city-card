@@ -25,13 +25,14 @@ interface CultureItem {
   name: string
   description: string
   image: string | null
+  video: string | null
   viewCount: number
   status: string
   createdAt: string
 }
 
 const CulturePage = () => {
-  const { user, token, isLoading } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const router = useRouter()
   const [cultures, setCultures] = useState<Culture[]>([])
   const [selectedCulture, setSelectedCulture] = useState<Culture | null>(null)
@@ -52,6 +53,7 @@ const CulturePage = () => {
     name: '',
     description: '',
     image: '',
+    video: '',
     status: 'PUBLISHED'
   })
   const [uploadLoading, setUploadLoading] = useState(false)
@@ -80,17 +82,17 @@ const CulturePage = () => {
 
   // 获取文化分类列表
   useEffect(() => {
-    if (token) {
+    if (user) {
       fetchCultures()
     }
-  }, [token, culturePagination.page, culturePagination.pageSize])
+  }, [user, culturePagination.page, culturePagination.pageSize])
 
   // 获取文化项目列表
   useEffect(() => {
-    if (token && selectedCulture) {
+    if (user && selectedCulture) {
       fetchCultureItems(selectedCulture.id)
     }
-  }, [token, selectedCulture, itemPagination.page, itemPagination.pageSize])
+  }, [user, selectedCulture, itemPagination.page, itemPagination.pageSize])
 
   // 切换标签页时重置分页
   useEffect(() => {
@@ -104,9 +106,7 @@ const CulturePage = () => {
   const fetchCultures = async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`/api/admin/culture?page=${culturePagination.page}&pageSize=${culturePagination.pageSize}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get(`/api/admin/culture?page=${culturePagination.page}&pageSize=${culturePagination.pageSize}`)
       if (res.data.success) {
         setCultures(res.data.data.list)
         setCulturePagination({
@@ -125,9 +125,7 @@ const CulturePage = () => {
 
   const fetchCultureItems = async (cultureId: number) => {
     try {
-      const res = await axios.get(`/api/admin/culture/${cultureId}/items?page=${itemPagination.page}&pageSize=${itemPagination.pageSize}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get(`/api/admin/culture/${cultureId}/items?page=${itemPagination.page}&pageSize=${itemPagination.pageSize}`)
       if (res.data.success) {
         setCultureItems(res.data.data.list)
         setItemPagination({
@@ -169,9 +167,7 @@ const CulturePage = () => {
   const handleDeleteCulture = async (id: number) => {
     if (confirm('确定要删除这个文化分类吗？相关的所有项目也会被删除。')) {
       try {
-        const res = await axios.delete(`/api/admin/culture/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.delete(`/api/admin/culture/${id}`)
         if (res.data.success) {
           // 重新获取列表
           setCulturePagination({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
@@ -198,6 +194,7 @@ const CulturePage = () => {
       name: '',
       description: '',
       image: '',
+      video: '',
       status: 'PUBLISHED'
     })
     setShowItemModal(true)
@@ -209,6 +206,7 @@ const CulturePage = () => {
       name: item.name,
       description: item.description,
       image: item.image || '',
+      video: item.video || '',
       status: item.status
     })
     setShowItemModal(true)
@@ -217,9 +215,7 @@ const CulturePage = () => {
   const handleDeleteItem = async (id: number) => {
     if (confirm('确定要删除这个文化项目吗？')) {
       try {
-        const res = await axios.delete(`/api/admin/culture/${selectedCulture?.id}/items/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.delete(`/api/admin/culture/${selectedCulture?.id}/items/${id}`)
         if (res.data.success) {
           // 重新获取列表
           setItemPagination({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
@@ -245,8 +241,7 @@ const CulturePage = () => {
 
       const res = await axios.post('/api/upload/culture-image', uploadFormData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: 'Bearer ' + token
+          'Content-Type': 'multipart/form-data'
         }
       })
 
@@ -264,22 +259,56 @@ const CulturePage = () => {
     }
   }
 
+  // 处理视频上传
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    console.log('准备上传视频:', file.name, file.type, file.size)
+
+    setUploadLoading(true)
+    try {
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+
+      // 不设置Content-Type，让axios自动处理
+      const res = await axios.post('/api/upload/culture-video', uploadFormData, {
+        // 禁用默认的transformRequest，让FormData直接发送
+        transformRequest: (data) => data
+      })
+
+      console.log('上传响应:', res.data)
+      if (res.data.success) {
+        setItemFormData({ ...itemFormData, video: res.data.data.url })
+        toast.success('视频上传成功')
+      } else {
+        toast.error(res.data.message || '上传失败')
+      }
+    } catch (error: any) {
+      console.error('上传视频失败', error)
+      if (error.response) {
+        console.error('错误响应:', error.response.data)
+        toast.error(error.response.data.message || '上传失败')
+      } else {
+        toast.error('网络错误，请稍后重试')
+      }
+    } finally {
+      setUploadLoading(false)
+    }
+  }
+
   const handleCultureSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       if (editingCulture) {
-        const res = await axios.put(`/api/admin/culture/${editingCulture.id}`, cultureFormData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.put(`/api/admin/culture/${editingCulture.id}`, cultureFormData)
         if (res.data.success) {
           setShowCultureModal(false)
           toast.success('更新文化分类成功')
           fetchCultures()
         }
       } else {
-        const res = await axios.post('/api/admin/culture', cultureFormData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.post('/api/admin/culture', cultureFormData)
         if (res.data.success) {
           setShowCultureModal(false)
           toast.success('添加文化分类成功')
@@ -300,18 +329,14 @@ const CulturePage = () => {
 
     try {
       if (editingItem) {
-        const res = await axios.put(`/api/admin/culture/${selectedCulture.id}/items/${editingItem.id}`, itemFormData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.put(`/api/admin/culture/${selectedCulture.id}/items/${editingItem.id}`, itemFormData)
         if (res.data.success) {
           setShowItemModal(false)
           toast.success('更新文化项目成功')
           fetchCultureItems(selectedCulture.id)
         }
       } else {
-        const res = await axios.post(`/api/admin/culture/${selectedCulture.id}/items`, itemFormData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.post(`/api/admin/culture/${selectedCulture.id}/items`, itemFormData)
         if (res.data.success) {
           setShowItemModal(false)
           toast.success('添加文化项目成功')
@@ -851,6 +876,47 @@ const CulturePage = () => {
                               type="file"
                               accept="image/*"
                               onChange={(e) => handleImageUpload(e, 'item')}
+                              disabled={uploadLoading}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                        {uploadLoading && <p className="text-xs text-gray-500 mt-2">上传中...</p>}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      视频
+                    </label>
+                    <div className="mb-4">
+                      <div className="flex flex-col items-center mb-4">
+                        <div className="relative">
+                          <div className="w-48 h-32 bg-gray-100 rounded-md flex items-center justify-center">
+                            {itemFormData.video ? (
+                              <video 
+                                src={itemFormData.video} 
+                                controls 
+                                className="w-full h-full object-cover rounded-md"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span className="text-xs text-gray-500 mt-2">点击上传视频</span>
+                              </div>
+                            )}
+                          </div>
+                          <label className="absolute bottom-2 right-2 bg-red-600 text-white rounded-full w-8 h-8 flex items-center justify-center cursor-pointer hover:bg-red-700 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            <input
+                              type="file"
+                              accept="video/*"
+                              onChange={handleVideoUpload}
                               disabled={uploadLoading}
                               className="hidden"
                             />

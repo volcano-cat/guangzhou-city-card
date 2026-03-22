@@ -1,19 +1,26 @@
-﻿import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword, generateToken } from '@/lib/auth'
+import { hashPassword, generateToken, generateRefreshToken, setAuthCookies } from '@/lib/auth'
+import { verifyVerificationCode, clearVerificationCode } from '@/lib/verification'
 import { successResponse, errorResponse } from '@/lib/response'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password, nickname } = body
+    const { email, password, nickname, code } = body
 
-    if (!email || !password) {
-      return errorResponse('请输入邮箱和密码')
+    if (!email || !password || !code) {
+      return errorResponse('请输入邮箱、密码和验证码')
     }
 
     if (password.length < 6) {
       return errorResponse('密码至少6位')
+    }
+
+    // 验证验证码
+    const isCodeValid = verifyVerificationCode(email, code)
+    if (!isCodeValid) {
+      return errorResponse('验证码错误或已过期')
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -44,16 +51,24 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // 清理验证码
+    clearVerificationCode(email)
+
     const token = generateToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     })
 
-    return successResponse({
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+    })
+
+    const response = successResponse({
       user,
-      token,
     }, '注册成功')
+
+    return setAuthCookies(response, token, refreshToken)
 
   } catch (error) {
     console.error('注册错误:', error)

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
@@ -29,6 +30,7 @@ interface CultureItem {
   name: string
   description: string
   image: string
+  video: string
   viewCount: number
   culture: {
     id: number
@@ -46,7 +48,7 @@ interface CultureItem {
 export default function CultureItemDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const { user, token } = useAuthStore()
+  const { user } = useAuthStore()
   const [item, setItem] = useState<CultureItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [isFavorited, setIsFavorited] = useState(false)
@@ -97,17 +99,19 @@ export default function CultureItemDetailPage() {
     setLoading(true)
     try {
       const headers: any = {}
-      if (token) {
-        headers['Authorization'] = 'Bearer ' + token
-      }
+
       
       const res = await axios.get(`/api/culture/${params.id}/${params.itemId}`, { headers })
       if (res.data.success) {
         setItem(res.data.data)
         setIsFavorited(res.data.data.isFavorited)
+      } else {
+        console.error('获取文化项目详情失败:', res.data.message)
+        setItem(null)
       }
     } catch (error) {
       console.error('获取文化项目详情失败', error)
+      setItem(null)
     } finally {
       setLoading(false)
     }
@@ -121,9 +125,7 @@ export default function CultureItemDetailPage() {
 
     try {
       if (isFavorited) {
-        await axios.delete(`/api/culture/${params.id}/${params.itemId}/favorite`, {
-          headers: { Authorization: 'Bearer ' + token }
-        })
+        await axios.delete(`/api/culture/${params.id}/${params.itemId}/favorite`, { withCredentials: true })
         setIsFavorited(false)
         if (item) {
           setItem({
@@ -136,9 +138,7 @@ export default function CultureItemDetailPage() {
           })
         }
       } else {
-        await axios.post(`/api/culture/${params.id}/${params.itemId}/favorite`, {}, {
-          headers: { Authorization: 'Bearer ' + token }
-        })
+        await axios.post(`/api/culture/${params.id}/${params.itemId}/favorite`, {}, { withCredentials: true })
         setIsFavorited(true)
         if (item) {
           setItem({
@@ -172,7 +172,7 @@ export default function CultureItemDetailPage() {
       const res = await axios.post(
         `/api/culture/${params.id}/${params.itemId}/comments`,
         { content: commentContent, rating: commentRating },
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         setCommentContent('')
@@ -242,7 +242,7 @@ export default function CultureItemDetailPage() {
       const res = await axios.post(
         `/api/culture/${params.id}/${params.itemId}/comments`,
         { content: replyContent, parentId },
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         setReplyContent('')
@@ -301,7 +301,7 @@ export default function CultureItemDetailPage() {
       const res = await axios.post(
         `/api/culture/${params.id}/${params.itemId}/comments/${commentId}/like`,
         {},
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         if (item) {
@@ -356,7 +356,7 @@ export default function CultureItemDetailPage() {
     try {
       const res = await axios.delete(
         `/api/culture/${params.id}/${params.itemId}/comments/${commentId}/like`,
-        { headers: { Authorization: 'Bearer ' + token } }
+        { withCredentials: true }
       )
       if (res.data.success) {
         if (item) {
@@ -441,12 +441,24 @@ export default function CultureItemDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="h-64 md:h-96 bg-gray-200 flex items-center justify-center">
-              <img
-                src={item.image || '/moren_culture-image/moren_attractions-image.jpg'}
-                alt={item.name}
+            <div className="h-64 md:h-96 bg-gray-200 overflow-hidden p-0 m-0">
+              <video
+                src={item.video || '/moren_culture-video/moren_culture-video.mp4'}
+                controls
+                autoPlay
+                muted
+                loop
                 className="w-full h-full object-cover"
-              />
+                style={{
+                  display: 'block',
+                  margin: '0',
+                  padding: '0',
+                  border: 'none',
+                  outline: 'none'
+                }}
+              >
+                您的浏览器不支持视频播放。
+              </video>
             </div>
             
             <div className="p-6">
@@ -542,16 +554,18 @@ export default function CultureItemDetailPage() {
                   <div key={comment.id} className="border-b border-gray-100 pb-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full overflow-hidden">
-                          <img 
-                            src={comment.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
-                            alt="用户头像" 
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <span className="ml-2 font-medium text-gray-900">
-                          {comment.user.nickname || '匿名用户'}
-                        </span>
+                        <Link href={`/users/${comment.user.id}`} className="flex items-center">
+                          <div className="w-8 h-8 rounded-full overflow-hidden">
+                            <img 
+                              src={comment.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                              alt="用户头像" 
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <span className="ml-2 font-medium text-gray-900 hover:text-red-600 transition-colors">
+                            {comment.user.nickname || '匿名用户'}
+                          </span>
+                        </Link>
                       </div>
                       <div className="flex items-center">
                         {comment.rating && (
@@ -632,18 +646,20 @@ export default function CultureItemDetailPage() {
                         {comment.replies.map((reply) => (
                           <div key={reply.id} className="border-l-2 border-gray-200 pl-4 py-2">
                             <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center">
-                                <div className="w-6 h-6 rounded-full overflow-hidden">
-                                  <img 
-                                    src={reply.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
-                                    alt="用户头像" 
-                                    className="w-full h-full object-cover"
-                                  />
+                                <div className="flex items-center">
+                                  <Link href={`/users/${reply.user.id}`} className="flex items-center">
+                                    <div className="w-6 h-6 rounded-full overflow-hidden">
+                                      <img 
+                                        src={reply.user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                                        alt="用户头像" 
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                    <span className="ml-2 text-sm font-medium text-gray-900 hover:text-red-600 transition-colors">
+                                      {reply.user.nickname || '匿名用户'}
+                                    </span>
+                                  </Link>
                                 </div>
-                                <span className="ml-2 text-sm font-medium text-gray-900">
-                                  {reply.user.nickname || '匿名用户'}
-                                </span>
-                              </div>
                               <div className="flex items-center">
                                 <span className="text-xs text-gray-500 mr-3">
                                   {new Date(reply.createdAt).toLocaleDateString()}

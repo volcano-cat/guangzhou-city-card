@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useAuthStore } from '@/store/auth'
+import axios from 'axios'
+import { toast } from 'sonner'
 
 const navigation = [
   { name: '首页', href: '/' },
@@ -78,9 +80,19 @@ export default function Header() {
                     </Link>
                   )}
                   <button
-                    onClick={() => {
-                      logout();
-                      setUserMenuOpen(false);
+                    onClick={async () => {
+                      try {
+                        await axios.post('/api/auth/logout');
+                        logout();
+                        setUserMenuOpen(false);
+                        toast.success('登出成功');
+                      } catch (error) {
+                        console.error('登出错误:', error);
+                        // 即使 API 调用失败，也清除本地状态
+                        logout();
+                        setUserMenuOpen(false);
+                        toast.success('登出成功');
+                      }
                     }}
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
                   >

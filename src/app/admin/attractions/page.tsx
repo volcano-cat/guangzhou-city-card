@@ -31,7 +31,7 @@ interface Attraction {
 }
 
 const AttractionsPage = () => {
-  const { user, token, isLoading } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const router = useRouter()
   const [attractions, setAttractions] = useState<Attraction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -67,24 +67,22 @@ const AttractionsPage = () => {
 
   // 获取景点列表
   useEffect(() => {
-    if (token) {
+    if (user) {
       fetchAttractions()
     }
-  }, [pagination.page, pagination.pageSize, token])
+  }, [pagination.page, pagination.pageSize, user])
 
   // 获取分类列表
   useEffect(() => {
-    if (token) {
+    if (user) {
       fetchCategories()
     }
-  }, [token])
+  }, [user])
 
   const fetchAttractions = async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`/api/admin/attractions?page=${pagination.page}&pageSize=${pagination.pageSize}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get(`/api/admin/attractions?page=${pagination.page}&pageSize=${pagination.pageSize}`)
       if (res.data.success) {
         setAttractions(res.data.data.data)
         setPagination(res.data.data.pagination)
@@ -98,9 +96,7 @@ const AttractionsPage = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get('/api/admin/categories?type=attraction', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get('/api/admin/categories?type=attraction')
       if (res.data.success) {
         setCategories(res.data.data)
       }
@@ -142,9 +138,7 @@ const AttractionsPage = () => {
   const handleDeleteAttraction = async (id: number) => {
     if (confirm('确定要删除这个景点吗？')) {
       try {
-        const res = await axios.delete(`/api/admin/attractions/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.delete(`/api/admin/attractions/${id}`)
         if (res.data.success) {
           fetchAttractions()
         }
@@ -166,8 +160,7 @@ const AttractionsPage = () => {
 
       const res = await axios.post('/api/upload/attraction-image', uploadFormData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: 'Bearer ' + token
+          'Content-Type': 'multipart/form-data'
         }
       })
 
@@ -187,18 +180,14 @@ const AttractionsPage = () => {
     e.preventDefault()
     try {
       if (editingAttraction) {
-        const res = await axios.put(`/api/admin/attractions/${editingAttraction.id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.put(`/api/admin/attractions/${editingAttraction.id}`, formData)
         if (res.data.success) {
           setShowAddModal(false)
           toast.success('更新景点成功')
           fetchAttractions()
         }
       } else {
-        const res = await axios.post('/api/admin/attractions', formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.post('/api/admin/attractions', formData)
         if (res.data.success) {
           setShowAddModal(false)
           toast.success('添加景点成功')
@@ -246,6 +235,9 @@ const AttractionsPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  图片
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   景点名称
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -265,6 +257,13 @@ const AttractionsPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {attractions.map((attraction) => (
                 <tr key={attraction.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <img 
+                      src={Array.isArray(attraction.images) && attraction.images.length > 0 ? attraction.images[0] : "/moren_attractions-image/moren_attractions-image.jpg"} 
+                      alt={attraction.name}
+                      className="w-16 h-16 object-cover rounded-md"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{attraction.name}</div>
                   </td>

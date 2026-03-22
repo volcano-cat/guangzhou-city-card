@@ -1,6 +1,6 @@
-﻿import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { comparePassword, generateToken } from '@/lib/auth'
+import { comparePassword, generateToken, generateRefreshToken, setAuthCookies } from '@/lib/auth'
 import { successResponse, errorResponse } from '@/lib/response'
 
 export async function POST(request: NextRequest) {
@@ -35,12 +35,17 @@ export async function POST(request: NextRequest) {
       role: user.role,
     })
 
+    const refreshToken = generateRefreshToken({
+      userId: user.id,
+    })
+
     const { password: _, ...userWithoutPassword } = user
 
-    return successResponse({
+    const response = successResponse({
       user: userWithoutPassword,
-      token,
     }, '登录成功')
+
+    return setAuthCookies(response, token, refreshToken)
 
   } catch (error) {
     console.error('登录错误:', error)

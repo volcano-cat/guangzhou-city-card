@@ -17,7 +17,7 @@ interface User {
 }
 
 const RolesPage = () => {
-  const { user, token, isLoading } = useAuthStore()
+  const { user, isLoading } = useAuthStore()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,17 +45,15 @@ const RolesPage = () => {
 
   // 获取用户列表
   useEffect(() => {
-    if (token) {
+    if (user) {
       fetchUsers()
     }
-  }, [pagination.page, pagination.pageSize, token])
+  }, [pagination.page, pagination.pageSize, user])
 
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`/api/admin/users?page=${pagination.page}&pageSize=${pagination.pageSize}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.get(`/api/admin/users?page=${pagination.page}&pageSize=${pagination.pageSize}`)
       if (res.data.success) {
         setUsers(res.data.data.data)
         setPagination(res.data.data.pagination)
@@ -81,9 +79,7 @@ const RolesPage = () => {
     if (!editingUser) return
     
     try {
-      const res = await axios.put(`/api/admin/users/${editingUser.id}/role`, formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      const res = await axios.put(`/api/admin/users/${editingUser.id}/role`, formData)
       if (res.data.success) {
         setShowEditModal(false)
         toast.success('更新用户角色成功')
@@ -96,16 +92,14 @@ const RolesPage = () => {
   }
 
   const handleDeleteUser = async (id: number) => {
-    if (id === user?.userId) {
+    if (id === user?.id) {
       toast.error('不能删除自己的账号')
       return
     }
     
     if (confirm('确定要删除这个用户吗？')) {
       try {
-        const res = await axios.delete(`/api/admin/users/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await axios.delete(`/api/admin/users/${id}`)
         if (res.data.success) {
           toast.success('删除用户成功')
           fetchUsers()
@@ -146,6 +140,9 @@ const RolesPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  头像
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   用户邮箱
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -165,6 +162,15 @@ const RolesPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {users.map((user) => (
                 <tr key={user.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="w-10 h-10 rounded-full overflow-hidden">
+                      <img 
+                        src={user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                        alt={user.nickname || user.email}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{user.email}</div>
                   </td>

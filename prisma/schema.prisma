@@ -182,6 +182,7 @@ model CultureItem {
   name        String
   description String          @db.Text
   image       String?
+  video       String?
   viewCount   Int             @default(0) @map("view_count")
   status      String          @default("PUBLISHED")
   createdAt   DateTime        @default(now()) @map("created_at")

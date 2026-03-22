@@ -4,18 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import axios from 'axios'
-import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 
-export default function RegisterPage() {
+export default function ForgotPasswordPage() {
   const router = useRouter()
-  const { setUser } = useAuthStore()
   
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [nickname, setNickname] = useState('')
   const [code, setCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
   const [countdown, setCountdown] = useState(0)
@@ -56,39 +53,37 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!email || !password || !code) {
-      toast.error('请输入邮箱、密码和验证码')
+    if (!email || !code || !newPassword || !confirmPassword) {
+      toast.error('请填写所有字段')
       return
     }
 
-    if (password.length < 6) {
+    if (newPassword.length < 6) {
       toast.error('密码至少6位')
       return
     }
 
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       toast.error('两次输入的密码不一致')
       return
     }
 
     setLoading(true)
     try {
-      const res = await axios.post('/api/auth/register', { 
+      const res = await axios.post('/api/auth/reset-password', { 
         email, 
-        password,
-        nickname: nickname || undefined,
-        code
-      }, { withCredentials: true })
+        code,
+        newPassword
+      })
       
       if (res.data.success) {
-        setUser(res.data.data.user)
-        // 不再需要手动设置 token，因为已经存储在 cookie 中
-        router.push('/')
+        toast.success('密码重置成功，请登录')
+        router.push('/login')
       } else {
-        toast.error(res.data.error || '注册失败')
+        toast.error(res.data.error || '密码重置失败')
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.error || '注册失败，请稍后重试')
+      toast.error(err.response?.data?.error || '密码重置失败，请稍后重试')
     } finally {
       setLoading(false)
     }
@@ -99,7 +94,7 @@ export default function RegisterPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            注册账户
+            找回密码
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             已有账户？{' '}
@@ -110,8 +105,6 @@ export default function RegisterPage() {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-
-          
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -159,40 +152,25 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-1">
-                昵称 (可选)
+              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                新密码
               </label>
               <input
-                id="nickname"
-                name="nickname"
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                className="input"
-                placeholder="请输入昵称"
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                密码
-              </label>
-              <input
-                id="password"
-                name="password"
+                id="newPassword"
+                name="newPassword"
                 type="password"
                 autoComplete="new-password"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
                 className="input"
-                placeholder="请输入密码（至少6位）"
+                placeholder="请输入新密码（至少6位）"
               />
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                确认密码
+                确认新密码
               </label>
               <input
                 id="confirmPassword"
@@ -203,7 +181,7 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="input"
-                placeholder="请再次输入密码"
+                placeholder="请再次输入新密码"
               />
             </div>
           </div>
@@ -214,7 +192,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full btn-primary py-3 text-lg disabled:opacity-50"
             >
-              {loading ? '注册中...' : '注册'}
+              {loading ? '重置密码中...' : '重置密码'}
             </button>
           </div>
         </form>
