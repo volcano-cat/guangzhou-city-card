@@ -17,10 +17,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '10')
+    const search = searchParams.get('search') || ''
     const skip = (page - 1) * pageSize
+
+    const where = search
+      ? {
+          name: { contains: search }
+        }
+      : {}
 
     const [cultures, total] = await Promise.all([
       prisma.culture.findMany({
+        where,
         include: {
           _count: {
             select: {
@@ -34,7 +42,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: pageSize
       }),
-      prisma.culture.count()
+      prisma.culture.count({ where })
     ])
 
     return successResponse({

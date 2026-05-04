@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+export const dynamic = 'force-dynamic';
+
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/'
@@ -31,7 +33,7 @@ export default function LoginPage() {
       
       if (res.data.success) {
         setUser(res.data.data.user)
-        // 不再需要手动设置 token，因为已经存储在 cookie 中
+        localStorage.setItem('tokenTimestamp', Date.now().toString())
         router.push(redirect)
       } else {
         toast.error(res.data.error || '登录失败')
@@ -114,5 +116,13 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div></div>}>
+      <LoginContent />
+    </Suspense>
   )
 }

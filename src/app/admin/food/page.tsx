@@ -1,11 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { toast } from 'sonner'
+
+const deleteOssFile = async (fileUrl: string) => {
+  try {
+    await axios.post('/api/upload/oss/delete', { fileUrl })
+  } catch (error) {
+    console.error('删除OSS文件失败:', error)
+  }
+}
 
 interface Category {
   id: number
@@ -50,12 +58,15 @@ const FoodPage = () => {
   const [mapSearchResults, setMapSearchResults] = useState<{name: string, address: string}[]>([])
   const [mapSearchLoading, setMapSearchLoading] = useState(false)
   const [uploadLoading, setUploadLoading] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
     total: 0,
     totalPages: 1
   })
+  const [searchTerm, setSearchTerm] = useState('')
 
   // 检查用户是否为管理员
   useEffect(() => {
@@ -80,10 +91,17 @@ const FoodPage = () => {
     }
   }, [user])
 
-  const fetchFoods = async () => {
+  const fetchFoods = async (searchValue = searchTerm) => {
     setLoading(true)
     try {
-      const res = await axios.get(`/api/admin/food?page=${pagination.page}&pageSize=${pagination.pageSize}`)
+      const params = new URLSearchParams({
+        page: pagination.page.toString(),
+        pageSize: pagination.pageSize.toString()
+      })
+      if (searchValue) {
+        params.append('search', searchValue)
+      }
+      const res = await axios.get(`/api/admin/food?${params.toString()}`)
       if (res.data.success) {
         setFoods(res.data.data.data)
         setPagination(res.data.data.pagination)
@@ -93,6 +111,17 @@ const FoodPage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSearch = () => {
+    setPagination({ ...pagination, page: 1 })
+    fetchFoods(searchTerm)
+  }
+
+  const handleReset = () => {
+    setSearchTerm('')
+    setPagination({ ...pagination, page: 1 })
+    fetchFoods('')
   }
 
   const fetchCategories = async () => {
@@ -162,31 +191,56 @@ const FoodPage = () => {
     }
   }
 
-  // 处理图片上传
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理图片选择（预览）
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    setUploadLoading(true)
-    try {
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', file)
+    const previewUrl = URL.createObjectURL(file)
+    setImagePreview(previewUrl)
+    setImageFile(file)
+    setFormData({ ...formData, images: [previewUrl] })
+  }
 
-      const res = await axios.post('/api/upload/food-image', uploadFormData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+  // 上传图片到OSS
+  const uploadImageToOss = useCallback(async (): Promise<string | null> => {
+    if (!imageFile) return null
+
+    try {
+      const res = await axios.post('/api/upload/oss', {
+        fileName: imageFile.name,
+        contentType: imageFile.type,
       })
 
-      if (res.data.success) {
-        setFormData({ ...formData, images: [res.data.data.url] })
+      if (!res.data.success) {
+        return null
       }
+
+      const { uploadUrl, fileUrl } = res.data.data
+
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: imageFile,
+        headers: {
+          'Content-Type': imageFile.type,
+        },
+      })
+
+      return fileUrl
     } catch (error) {
-      console.error('上传图片失败', error)
-    } finally {
-      setUploadLoading(false)
+      console.error('上传图片到OSS失败:', error)
+      return null
     }
-  }
+  }, [imageFile])
+
+  // 清理预览资源
+  const cleanupImagePreview = useCallback(() => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+      setImagePreview(null)
+    }
+    setImageFile(null)
+  }, [imagePreview])
 
   // 处理添加餐厅
   const handleAddRestaurant = () => {
@@ -289,19 +343,39 @@ const FoodPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      let finalImages = formData.images
+      const oldImages = editingFood?.images || []
+
+      if (imageFile) {
+        const ossUrl = await uploadImageToOss()
+        if (ossUrl) {
+          finalImages = [ossUrl]
+          // 删除旧图片
+          for (const oldImage of oldImages) {
+            if (oldImage.startsWith('https://')) {
+              await deleteOssFile(oldImage)
+            }
+          }
+        }
+      }
+
+      const submitData = { ...formData, images: finalImages }
+
       if (editingFood) {
-        const res = await axios.put(`/api/admin/food/${editingFood.id}`, formData)
+        const res = await axios.put(`/api/admin/food/${editingFood.id}`, submitData)
         if (res.data.success) {
           setShowAddModal(false)
           toast.success('更新美食成功')
           fetchFoods()
+          cleanupImagePreview()
         }
       } else {
-        const res = await axios.post('/api/admin/food', formData)
+        const res = await axios.post('/api/admin/food', submitData)
         if (res.data.success) {
           setShowAddModal(false)
           toast.success('添加美食成功')
           fetchFoods()
+          cleanupImagePreview()
         }
       }
     } catch (error) {
@@ -338,6 +412,28 @@ const FoodPage = () => {
           >
             添加美食
           </button>
+        </div>
+        
+        <div className="mb-4">
+          <div className="flex-1 min-w-[200px] max-w-md flex gap-2">
+            <input
+              type="text"
+              placeholder="搜索美食（名称）"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <button onClick={handleSearch} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+              搜索
+            </button>
+            <button 
+              onClick={handleReset} 
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+            >
+              重置
+            </button>
+          </div>
         </div>
 
         <div className="bg-white shadow-md rounded-lg overflow-hidden">
@@ -462,8 +558,7 @@ const FoodPage = () => {
                             <input
                               type="file"
                               accept="image/*"
-                              onChange={handleImageUpload}
-                              disabled={uploadLoading}
+                              onChange={handleImageSelect}
                               className="hidden"
                             />
                           </label>
@@ -537,6 +632,8 @@ const FoodPage = () => {
                       setShowAddModal(false)
                       // 清空新添加的餐厅信息
                       setNewRestaurant({ name: '', address: '' })
+                      // 清理预览资源
+                      cleanupImagePreview()
                     }}
                     className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   >

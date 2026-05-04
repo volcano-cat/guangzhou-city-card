@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyRefreshToken, generateToken, setAuthCookies } from '@/lib/auth'
+import { verifyRefreshToken, generateToken, generateRefreshToken, setAuthCookies } from '@/lib/auth'
 import { successResponse, errorResponse } from '@/lib/response'
 
 export async function POST(request: NextRequest) {

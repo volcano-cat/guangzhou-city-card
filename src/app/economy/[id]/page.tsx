@@ -2,9 +2,36 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import type { EChartsOption } from 'echarts'
+import {
+  LineChart,
+  BarChart,
+  PieChart,
+  RadarChart
+} from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  RadarComponent
+} from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 
-// 经济产业详情数据
+echarts.use([
+  LineChart,
+  BarChart,
+  PieChart,
+  RadarChart,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+  RadarComponent,
+  CanvasRenderer
+])
+
 const industryDetails = [
   {
     id: 1,
@@ -306,7 +333,6 @@ export default function IndustryDetailPage() {
   const [industry, setIndustry] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
-  // 图表容器引用
   const chartRefs = {
     trendChart: useRef<HTMLDivElement>(null),
     structureChart: useRef<HTMLDivElement>(null),
@@ -325,20 +351,16 @@ export default function IndustryDetailPage() {
     setLoading(false)
   }, [params.id])
 
-  // 渲染图表
   useEffect(() => {
     if (!industry || !industry.chartData) return
 
-    // 保存清理函数
     const cleanups: (() => void)[] = []
 
-    // 渲染趋势图
     if (chartRefs.trendChart.current) {
       const trendChart = echarts.init(chartRefs.trendChart.current)
-      let trendOption: echarts.EChartsOption
+      let trendOption: EChartsOption
 
       if (industry.id === 1) {
-        // 汽车制造 - 产量趋势
         trendOption = {
           title: {
             text: '汽车产量趋势（万辆）',
@@ -370,7 +392,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if (industry.id === 5) {
-        // 现代商贸 - 社会消费品零售总额
         trendOption = {
           title: {
             text: '社会消费品零售总额（万亿元）',
@@ -402,7 +423,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if (industry.id === 4) {
-        // 金融服务 - 存贷款余额
         trendOption = {
           title: {
             text: '存贷款余额（万亿元）',
@@ -434,7 +454,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else {
-        // 其他产业 - 产值趋势
         trendOption = {
           title: {
             text: '产业产值趋势（亿元）',
@@ -469,7 +488,6 @@ export default function IndustryDetailPage() {
 
       trendChart.setOption(trendOption)
 
-      // 响应式
       const handleResize = () => {
         trendChart.resize()
       }
@@ -481,10 +499,9 @@ export default function IndustryDetailPage() {
       })
     }
 
-    // 渲染产业结构图
     if (chartRefs.structureChart.current && industry.chartData.industryStructure) {
       const structureChart = echarts.init(chartRefs.structureChart.current)
-      const structureOption: echarts.EChartsOption = {
+      const structureOption: EChartsOption = {
         title: {
           text: '产业结构分布',
           left: 'center'
@@ -519,7 +536,6 @@ export default function IndustryDetailPage() {
 
       structureChart.setOption(structureOption)
 
-      // 响应式
       const handleResize = () => {
         structureChart.resize()
       }
@@ -531,13 +547,11 @@ export default function IndustryDetailPage() {
       })
     }
 
-    // 渲染就业分布图
     if (chartRefs.distributionChart.current) {
       const distributionChart = echarts.init(chartRefs.distributionChart.current)
-      let distributionOption: echarts.EChartsOption | null = null
+      let distributionOption: EChartsOption | null = null
 
       if ((industry.id === 1 || industry.id === 4) && industry.chartData.employmentDistribution) {
-        // 汽车制造和金融服务 - 就业分布
         distributionOption = {
           title: {
             text: '就业分布',
@@ -570,7 +584,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if ((industry.id === 2 || industry.id === 5) && industry.chartData.enterpriseScale) {
-        // 电子信息和现代商贸 - 企业规模分布
         distributionOption = {
           title: {
             text: '企业规模分布',
@@ -603,7 +616,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if (industry.id === 6 && industry.chartData.applicationDistribution) {
-        // 人工智能 - 应用分布
         distributionOption = {
           title: {
             text: '应用领域分布',
@@ -636,7 +648,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if (industry.chartData.patentGrowth) {
-        // 生物医药 - 专利增长
         distributionOption = {
           title: {
             text: '专利数量增长',
@@ -672,7 +683,6 @@ export default function IndustryDetailPage() {
       if (distributionOption) {
         distributionChart.setOption(distributionOption)
 
-        // 响应式
         const handleResize = () => {
           distributionChart.resize()
         }
@@ -685,13 +695,11 @@ export default function IndustryDetailPage() {
       }
     }
 
-    // 渲染研发投入图
     if (chartRefs.otherChart.current) {
       const otherChart = echarts.init(chartRefs.otherChart.current)
-      let otherOption: echarts.EChartsOption | null = null
+      let otherOption: EChartsOption | null = null
 
       if ((industry.id === 3 || industry.id === 6) && industry.chartData.rDInvestment) {
-        // 生物医药和人工智能 - 研发投入
         otherOption = {
           title: {
             text: '研发投入趋势（亿元）',
@@ -719,7 +727,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if (industry.id === 5 && industry.chartData.importExport) {
-        // 现代商贸 - 进出口总额
         otherOption = {
           title: {
             text: '进出口总额（万亿元）',
@@ -747,7 +754,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else if (industry.id === 4 && industry.chartData.financialOutput) {
-        // 金融服务 - 金融产值
         otherOption = {
           title: {
             text: '金融产值趋势（亿元）',
@@ -775,7 +781,6 @@ export default function IndustryDetailPage() {
           }]
         }
       } else {
-        // 其他产业 - 研发投入
         otherOption = {
           title: {
             text: '研发投入趋势（亿元）',
@@ -807,7 +812,6 @@ export default function IndustryDetailPage() {
       if (otherOption) {
         otherChart.setOption(otherOption)
 
-        // 响应式
         const handleResize = () => {
           otherChart.resize()
         }
@@ -820,10 +824,9 @@ export default function IndustryDetailPage() {
       }
     }
 
-    // 渲染竞争力分析图表
     if (chartRefs.competitivenessChart.current && industry.chartData.competitiveness) {
       const competitivenessChart = echarts.init(chartRefs.competitivenessChart.current)
-      const competitivenessOption: echarts.EChartsOption = {
+      const competitivenessOption: EChartsOption = {
         title: {
           text: '产业竞争力分析',
           left: 'center'
@@ -861,7 +864,6 @@ export default function IndustryDetailPage() {
 
       competitivenessChart.setOption(competitivenessOption)
 
-      // 响应式
       const handleResize = () => {
         competitivenessChart.resize()
       }
@@ -873,13 +875,11 @@ export default function IndustryDetailPage() {
       })
     }
 
-    // 渲染产业发展预测图表
     if (chartRefs.forecastChart.current && industry.chartData.forecast) {
       const forecastChart = echarts.init(chartRefs.forecastChart.current)
-      let forecastOption: echarts.EChartsOption
+      let forecastOption: EChartsOption
 
       if (industry.id === 5) {
-        // 现代商贸 - 社会消费品零售总额预测
         forecastOption = {
           title: {
             text: '社会消费品零售总额预测（万亿元）',
@@ -947,7 +947,6 @@ export default function IndustryDetailPage() {
           ]
         }
       } else {
-        // 其他产业 - 产值或产量预测
         const isAutoIndustry = industry.id === 1
         const title = isAutoIndustry ? '汽车产量预测（万辆）' : '产业产值预测（亿元）'
         
@@ -1021,7 +1020,6 @@ export default function IndustryDetailPage() {
 
       forecastChart.setOption(forecastOption)
 
-      // 响应式
       const handleResize = () => {
         forecastChart.resize()
       }
@@ -1033,7 +1031,6 @@ export default function IndustryDetailPage() {
       })
     }
 
-    // 返回综合清理函数
     return () => {
       cleanups.forEach(cleanup => cleanup())
     }
@@ -1154,25 +1151,6 @@ export default function IndustryDetailPage() {
           <div className="bg-white rounded-lg shadow-md p-4 h-96">
             <div ref={chartRefs.forecastChart} className="w-full h-full"></div>
           </div>
-        </div>
-      </div>
-
-      <div className="mt-8 bg-gray-50 rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">相关产业</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {industryDetails
-            .filter(item => item.id !== industry.id)
-            .slice(0, 5)
-            .map((item) => (
-              <a
-                key={item.id}
-                href={`/economy/${item.id}`}
-                className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 text-center"
-              >
-                <div className="text-3xl mb-2">{item.icon}</div>
-                <div className="text-sm font-medium text-gray-900">{item.name}</div>
-              </a>
-            ))}
         </div>
       </div>
     </div>

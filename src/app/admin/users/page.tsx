@@ -4,26 +4,27 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { toast } from 'sonner'
 
 interface User {
   id: number
   email: string
-  nickname: string | null
+  nickname: string
   avatar: string | null
   role: string
   status: string
   createdAt: string
+  updatedAt: string
 }
 
-const RolesPage = () => {
+const UsersPage = () => {
   const { user, isLoading } = useAuthStore()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
   const [formData, setFormData] = useState({
     role: 'USER',
     status: 'ACTIVE'
@@ -85,7 +86,7 @@ const RolesPage = () => {
     fetchUsers('')
   }
 
-  const handleEditRole = (user: User) => {
+  const handleEditUser = (user: User) => {
     setEditingUser(user)
     setFormData({
       role: user.role,
@@ -97,37 +98,17 @@ const RolesPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingUser) return
-    
+
     try {
-      const res = await axios.put(`/api/admin/users/${editingUser.id}/role`, formData)
+      const res = await axios.put(`/api/admin/users/${editingUser.id}`, formData)
       if (res.data.success) {
         setShowEditModal(false)
-        toast.success('更新用户角色成功')
+        toast.success('更新用户成功')
         fetchUsers()
       }
     } catch (error) {
-      console.error('更新用户角色失败', error)
-      toast.error('更新用户角色失败，请稍后重试')
-    }
-  }
-
-  const handleDeleteUser = async (id: number) => {
-    if (id === user?.id) {
-      toast.error('不能删除自己的账号')
-      return
-    }
-    
-    if (confirm('确定要删除这个用户吗？')) {
-      try {
-        const res = await axios.delete(`/api/admin/users/${id}`)
-        if (res.data.success) {
-          toast.success('删除用户成功')
-          fetchUsers()
-        }
-      } catch (error) {
-        console.error('删除用户失败', error)
-        toast.error('删除用户失败，请稍后重试')
-      }
+      console.error('更新用户失败', error)
+      toast.error('更新用户失败，请稍后重试')
     }
   }
 
@@ -152,7 +133,7 @@ const RolesPage = () => {
           </Link>
         </div>
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">角色管理</h1>
+          <h1 className="text-2xl font-bold text-gray-900">用户管理</h1>
         </div>
         
         <div className="mb-4">
@@ -185,7 +166,7 @@ const RolesPage = () => {
                   头像
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  用户邮箱
+                  邮箱
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   昵称
@@ -197,6 +178,9 @@ const RolesPage = () => {
                   状态
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  注册时间
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   操作
                 </th>
               </tr>
@@ -205,46 +189,37 @@ const RolesPage = () => {
               {users.map((user) => (
                 <tr key={user.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="w-10 h-10 rounded-full overflow-hidden">
-                      <img 
-                        src={user.avatar || '/moren_avatar/moren_avatar.jpg'} 
-                        alt={user.nickname || user.email}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    <img 
+                      src={user.avatar || '/moren_avatar/moren_avatar.jpg'} 
+                      alt={user.nickname}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{user.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{user.nickname || '无'}</div>
+                    <div className="text-sm text-gray-900">{user.nickname}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      user.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
                       {user.role === 'ADMIN' ? '管理员' : '普通用户'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      user.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {user.status === 'ACTIVE' ? '活跃' : '禁用'}
                     </span>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-500">{new Date(user.createdAt).toLocaleString()}</div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
-                      onClick={() => handleEditRole(user)}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      onClick={() => handleEditUser(user)}
+                      className="text-blue-600 hover:text-blue-900"
                     >
-                      编辑角色
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      删除用户
+                      编辑
                     </button>
                   </td>
                 </tr>
@@ -256,16 +231,27 @@ const RolesPage = () => {
         {showEditModal && editingUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4">编辑用户角色</h2>
+              <h2 className="text-xl font-bold mb-4">编辑用户</h2>
               <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      用户邮箱
+                      邮箱
+                    </label>
+                    <input
+                      type="email"
+                      value={editingUser.email}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      昵称
                     </label>
                     <input
                       type="text"
-                      value={editingUser.email}
+                      value={editingUser.nickname}
                       disabled
                       className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
                     />
@@ -293,7 +279,7 @@ const RolesPage = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     >
                       <option value="ACTIVE">活跃</option>
-                      <option value="INACTIVE">禁用</option>
+                      <option value="DISABLED">禁用</option>
                     </select>
                   </div>
                 </div>
@@ -373,4 +359,5 @@ const RolesPage = () => {
     </div>
   )
 }
-export default RolesPage
+
+export default UsersPage

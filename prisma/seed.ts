@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client'
+﻿﻿﻿﻿import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -17,6 +17,19 @@ async function main() {
     },
   })
 
+  // 创建普通测试用户
+  const userPassword = await bcrypt.hash('user123', 10)
+  await prisma.user.upsert({
+    where: { email: 'user@example.com' },
+    update: {},
+    create: {
+      email: 'user@example.com',
+      password: userPassword,
+      nickname: '测试用户',
+      role: 'USER',
+    },
+  })
+
   // 创建景点分类
   const attractionCategories = [
     { name: '历史古迹', type: 'ATTRACTION' as const, sort: 1 },
@@ -27,11 +40,12 @@ async function main() {
   ]
 
   for (const cat of attractionCategories) {
-    await prisma.category.upsert({
-      where: { id: cat.sort },
-      update: cat,
-      create: cat,
+    const existing = await prisma.category.findFirst({
+      where: { name: cat.name, type: cat.type }
     })
+    if (!existing) {
+      await prisma.category.create({ data: cat })
+    }
   }
 
   // 创建美食分类
@@ -43,14 +57,19 @@ async function main() {
   ]
 
   for (const cat of foodCategories) {
-    await prisma.category.upsert({
-      where: { id: cat.sort },
-      update: cat,
-      create: cat,
+    const existing = await prisma.category.findFirst({
+      where: { name: cat.name, type: cat.type }
     })
+    if (!existing) {
+      await prisma.category.create({ data: cat })
+    }
   }
 
-  // 创建景点数据 - 使用 upsert 避免重复
+  // 获取所有分类的映射
+  const allCategories = await prisma.category.findMany()
+  const categoryMap = new Map(allCategories.map(c => [c.name, c.id]))
+
+  // 创建景点数据
   const attractions = [
     {
       name: '广州塔',
@@ -58,7 +77,7 @@ async function main() {
       address: '广州市海珠区阅江西路222号',
       openTime: '09:30-22:30',
       ticketInfo: '成人票150元起',
-      categoryId: 3,
+      categoryName: '现代地标',
     },
     {
       name: '陈家祠',
@@ -66,7 +85,7 @@ async function main() {
       address: '广州市荔湾区中山七路恩龙里34号',
       openTime: '08:30-17:30',
       ticketInfo: '成人票10元',
-      categoryId: 1,
+      categoryName: '历史古迹',
     },
     {
       name: '白云山',
@@ -74,7 +93,7 @@ async function main() {
       address: '广州市白云区广园中路白云山景区',
       openTime: '06:00-22:00',
       ticketInfo: '门票5元，索道另收费',
-      categoryId: 2,
+      categoryName: '自然风光',
     },
     {
       name: '沙面岛',
@@ -82,7 +101,7 @@ async function main() {
       address: '广州市荔湾区沙面大街',
       openTime: '全天开放',
       ticketInfo: '免费',
-      categoryId: 1,
+      categoryName: '历史古迹',
     },
     {
       name: '广东省博物馆',
@@ -90,7 +109,7 @@ async function main() {
       address: '广州市天河区珠江东路2号',
       openTime: '09:00-17:00（周一闭馆）',
       ticketInfo: '免费，需预约',
-      categoryId: 4,
+      categoryName: '文化场馆',
     },
     {
       name: '越秀公园',
@@ -98,7 +117,7 @@ async function main() {
       address: '广州市越秀区解放北路988号',
       openTime: '06:00-21:00',
       ticketInfo: '免费',
-      categoryId: 5,
+      categoryName: '休闲公园',
     },
   ]
 
@@ -108,42 +127,49 @@ async function main() {
     })
     if (!existing) {
       await prisma.attraction.create({
-        data: attr,
+        data: {
+          name: attr.name,
+          description: attr.description,
+          address: attr.address,
+          openTime: attr.openTime,
+          ticketInfo: attr.ticketInfo,
+          categoryId: categoryMap.get(attr.categoryName)!,
+        },
       })
     }
   }
 
-  // 创建美食数据 - 使用检查避免重复
+  // 创建美食数据
   const foods = [
     {
       name: '白切鸡',
       description: '白切鸡是广东最经典的粤菜之一，选用优质清远鸡，皮爽肉滑，原汁原味，配以姜葱蓉蘸料，是广州人宴请宾客的必备菜品。',
-      categoryId: 10,
+      categoryName: '粤菜',
     },
     {
       name: '虾饺',
       description: '虾饺是广式早茶的代表点心，外皮晶莹剔透，内馅鲜虾爽口，是检验茶楼点心水平的标准之一。',
-      categoryId: 11,
+      categoryName: '早茶点心',
     },
     {
       name: '肠粉',
       description: '肠粉是广州著名的传统小吃，米浆蒸制而成的粉皮包裹着鲜虾、牛肉或叉烧，淋上特制酱油，口感爽滑。',
-      categoryId: 12,
+      categoryName: '特色小吃',
     },
     {
       name: '叉烧',
       description: '叉烧是粤菜中的经典烧味，选用上等猪肉，以蜜汁腌制后烤制，色泽红亮，肉质鲜嫩，甜中带咸。',
-      categoryId: 10,
+      categoryName: '粤菜',
     },
     {
       name: '双皮奶',
       description: '双皮奶是广东传统甜品，以水牛奶为原料，经过两次结皮制成，口感香滑细腻，是广州最受欢迎的糖水之一。',
-      categoryId: 13,
+      categoryName: '甜品糖水',
     },
     {
       name: '艇仔粥',
       description: '艇仔粥是广州传统名小吃，粥底绵滑，配料丰富，有鱼片、蛋丝、油条、花生等，味道鲜美。',
-      categoryId: 12,
+      categoryName: '特色小吃',
     },
   ]
 
@@ -153,12 +179,16 @@ async function main() {
     })
     if (!existing) {
       await prisma.food.create({
-        data: food,
+        data: {
+          name: food.name,
+          description: food.description,
+          categoryId: categoryMap.get(food.categoryName)!,
+        },
       })
     }
   }
 
-  // 创建文化分类 - 使用 upsert 避免重复
+  // 创建文化分类
   const cultures = [
     {
       name: '岭南文化',
@@ -213,9 +243,8 @@ async function main() {
     }
   }
 
-  // 创建文化项目数据 - 使用检查避免重复
+  // 创建文化项目数据
   const cultureItems = [
-    // 岭南文化
     {
       cultureName: '岭南文化',
       name: '陈家祠',
@@ -234,7 +263,6 @@ async function main() {
       description: '南海神庙是广州最古老的寺庙之一，是海上丝绸之路的重要历史遗迹。始建于隋开皇年间，是古代中国海上贸易的重要象征，也是广州作为海上丝绸之路起点的历史见证。',
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Nanhai%20Temple%20ancient%20Chinese%20temple%20in%20Guangzhou&image_size=landscape_16_9',
     },
-    // 粤剧艺术
     {
       cultureName: '粤剧艺术',
       name: '红线女艺术中心',
@@ -247,7 +275,6 @@ async function main() {
       description: '广东粤剧院是广东省的专业粤剧表演团体，致力于粤剧的传承和发展。剧院拥有众多优秀的粤剧演员和剧目，是粤剧艺术的重要传承基地。',
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Guangdong%20Cantonese%20Opera%20House%20in%20Guangzhou&image_size=landscape_16_9',
     },
-    // 醒狮文化
     {
       cultureName: '醒狮文化',
       name: '黄飞鸿纪念馆',
@@ -260,7 +287,6 @@ async function main() {
       description: '广州各大景区和节庆活动中都有精彩的醒狮表演，展示了传统民俗文化的魅力。醒狮表演通常由两人合作完成，一人舞狮头，一人舞狮尾，通过各种高难度动作展现狮子的威猛和灵动。',
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Lion%20dance%20performance%20during%20festival%20in%20Guangzhou&image_size=landscape_16_9',
     },
-    // 龙舟竞渡
     {
       cultureName: '龙舟竞渡',
       name: '珠江龙舟赛',
@@ -273,7 +299,6 @@ async function main() {
       description: '广州的龙舟制作工艺历史悠久，是岭南传统工艺的重要组成部分。龙舟的制作过程包括选料、设计、雕刻、彩绘等多个环节，体现了岭南工匠的精湛技艺。',
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Dragon%20boat%20making%20craftsmanship%20in%20Guangzhou&image_size=landscape_16_9',
     },
-    // 广府建筑
     {
       cultureName: '广府建筑',
       name: '骑楼街',
@@ -292,7 +317,6 @@ async function main() {
       description: '镬耳墙是广府建筑的标志性元素，因其形状像铁锅的耳朵而得名。镬耳墙具有防火、通风等功能，也是富贵的象征，常见于传统民居和祠堂建筑中，体现了岭南建筑的独特风格。',
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Huoer%20walls%20traditional%20Cantonese%20architecture%20in%20Guangzhou&image_size=landscape_16_9',
     },
-    // 茶文化
     {
       cultureName: '茶文化',
       name: '陶陶居',
@@ -315,7 +339,7 @@ async function main() {
 
   for (const item of cultureItems) {
     const culture = createdCultures.find(c => c.name === item.cultureName)
-    
+
     if (culture) {
       const existing = await prisma.cultureItem.findFirst({
         where: { name: item.name, cultureId: culture.id }

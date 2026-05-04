@@ -123,7 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       }
     })
 
-    return successResponse({ ...food, isFavorited }, '获取美食详情成功')
+    return successResponse({ ...food, restaurants: food.restaurants || null, isFavorited }, '获取美食详情成功')
 
   } catch (error) {
     console.error('获取美食详情错误:', error)

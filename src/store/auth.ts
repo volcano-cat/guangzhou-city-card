@@ -33,3 +33,8 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 )
+
+export const useIsLoggedIn = () => {
+  const user = useAuthStore((state) => state.user)
+  return !!user
+}

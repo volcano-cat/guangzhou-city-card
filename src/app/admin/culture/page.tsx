@@ -1,11 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 import { toast } from 'sonner'
+
+const deleteOssFile = async (fileUrl: string) => {
+  try {
+    await axios.post('/api/upload/oss/delete', { fileUrl })
+  } catch (error) {
+    console.error('删除OSS文件失败:', error)
+  }
+}
 
 interface Culture {
   id: number
@@ -57,6 +65,12 @@ const CulturePage = () => {
     status: 'PUBLISHED'
   })
   const [uploadLoading, setUploadLoading] = useState(false)
+  const [cultureImagePreview, setCultureImagePreview] = useState<string | null>(null)
+  const [cultureImageFile, setCultureImageFile] = useState<File | null>(null)
+  const [itemImagePreview, setItemImagePreview] = useState<string | null>(null)
+  const [itemImageFile, setItemImageFile] = useState<File | null>(null)
+  const [itemVideoPreview, setItemVideoPreview] = useState<string | null>(null)
+  const [itemVideoFile, setItemVideoFile] = useState<File | null>(null)
   const [activeTab, setActiveTab] = useState<'cultures' | 'items'>('cultures')
   const [culturePagination, setCulturePagination] = useState({
     page: 1,
@@ -70,6 +84,8 @@ const CulturePage = () => {
     total: 0,
     totalPages: 1
   })
+  const [cultureSearch, setCultureSearch] = useState('')
+  const [itemSearch, setItemSearch] = useState('')
 
   // 检查用户是否为管理员
   useEffect(() => {
@@ -103,10 +119,17 @@ const CulturePage = () => {
     }
   }, [activeTab, selectedCulture])
 
-  const fetchCultures = async () => {
+  const fetchCultures = async (searchValue = cultureSearch) => {
     setLoading(true)
     try {
-      const res = await axios.get(`/api/admin/culture?page=${culturePagination.page}&pageSize=${culturePagination.pageSize}`)
+      const params = new URLSearchParams({
+        page: culturePagination.page.toString(),
+        pageSize: culturePagination.pageSize.toString()
+      })
+      if (searchValue) {
+        params.append('search', searchValue)
+      }
+      const res = await axios.get(`/api/admin/culture?${params.toString()}`)
       if (res.data.success) {
         setCultures(res.data.data.list)
         setCulturePagination({
@@ -123,9 +146,16 @@ const CulturePage = () => {
     }
   }
 
-  const fetchCultureItems = async (cultureId: number) => {
+  const fetchCultureItems = async (cultureId: number, searchValue = itemSearch) => {
     try {
-      const res = await axios.get(`/api/admin/culture/${cultureId}/items?page=${itemPagination.page}&pageSize=${itemPagination.pageSize}`)
+      const params = new URLSearchParams({
+        page: itemPagination.page.toString(),
+        pageSize: itemPagination.pageSize.toString()
+      })
+      if (searchValue) {
+        params.append('search', searchValue)
+      }
+      const res = await axios.get(`/api/admin/culture/${cultureId}/items?${params.toString()}`)
       if (res.data.success) {
         setCultureItems(res.data.data.list)
         setItemPagination({
@@ -137,6 +167,32 @@ const CulturePage = () => {
       }
     } catch (error) {
       console.error('获取文化项目列表失败', error)
+    }
+  }
+
+  const handleCultureSearch = () => {
+    setCulturePagination({ ...culturePagination, page: 1 })
+    fetchCultures(cultureSearch)
+  }
+
+  const handleCultureReset = () => {
+    setCultureSearch('')
+    setCulturePagination({ ...culturePagination, page: 1 })
+    fetchCultures('')
+  }
+
+  const handleItemSearch = () => {
+    setItemPagination({ ...itemPagination, page: 1 })
+    if (selectedCulture) {
+      fetchCultureItems(selectedCulture.id, itemSearch)
+    }
+  }
+
+  const handleItemReset = () => {
+    setItemSearch('')
+    setItemPagination({ ...itemPagination, page: 1 })
+    if (selectedCulture) {
+      fetchCultureItems(selectedCulture.id, '')
     }
   }
 
@@ -229,92 +285,126 @@ const CulturePage = () => {
     }
   }
 
-  // 处理图片上传
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'culture' | 'item') => {
+  // 处理图片选择（预览）
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'culture' | 'item') => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    setUploadLoading(true)
-    try {
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', file)
+    const previewUrl = URL.createObjectURL(file)
+    
+    if (type === 'culture') {
+      setCultureImagePreview(previewUrl)
+      setCultureImageFile(file)
+      setCultureFormData({ ...cultureFormData, image: previewUrl })
+    } else {
+      setItemImagePreview(previewUrl)
+      setItemImageFile(file)
+      setItemFormData({ ...itemFormData, image: previewUrl })
+    }
+  }
 
-      const res = await axios.post('/api/upload/culture-image', uploadFormData, {
+  // 处理视频选择（预览）
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const previewUrl = URL.createObjectURL(file)
+    setItemVideoPreview(previewUrl)
+    setItemVideoFile(file)
+    setItemFormData({ ...itemFormData, video: previewUrl })
+  }
+
+  // 上传文件到OSS
+  const uploadToOss = useCallback(async (file: File): Promise<string | null> => {
+    try {
+      const res = await axios.post('/api/upload/oss', {
+        fileName: file.name,
+        contentType: file.type,
+      })
+
+      if (!res.data.success) {
+        return null
+      }
+
+      const { uploadUrl, fileUrl } = res.data.data
+
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': file.type,
+        },
       })
 
-      if (res.data.success) {
-        if (type === 'culture') {
-          setCultureFormData({ ...cultureFormData, image: res.data.data.url })
-        } else {
-          setItemFormData({ ...itemFormData, image: res.data.data.url })
-        }
-      }
+      return fileUrl
     } catch (error) {
-      console.error('上传图片失败', error)
-    } finally {
-      setUploadLoading(false)
+      console.error('上传到OSS失败:', error)
+      return null
     }
-  }
+  }, [])
 
-  // 处理视频上传
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    console.log('准备上传视频:', file.name, file.type, file.size)
-
-    setUploadLoading(true)
-    try {
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', file)
-
-      // 不设置Content-Type，让axios自动处理
-      const res = await axios.post('/api/upload/culture-video', uploadFormData, {
-        // 禁用默认的transformRequest，让FormData直接发送
-        transformRequest: (data) => data
-      })
-
-      console.log('上传响应:', res.data)
-      if (res.data.success) {
-        setItemFormData({ ...itemFormData, video: res.data.data.url })
-        toast.success('视频上传成功')
-      } else {
-        toast.error(res.data.message || '上传失败')
-      }
-    } catch (error: any) {
-      console.error('上传视频失败', error)
-      if (error.response) {
-        console.error('错误响应:', error.response.data)
-        toast.error(error.response.data.message || '上传失败')
-      } else {
-        toast.error('网络错误，请稍后重试')
-      }
-    } finally {
-      setUploadLoading(false)
+  // 清理文化图片预览
+  const cleanupCultureImagePreview = useCallback(() => {
+    if (cultureImagePreview) {
+      URL.revokeObjectURL(cultureImagePreview)
+      setCultureImagePreview(null)
     }
-  }
+    setCultureImageFile(null)
+  }, [cultureImagePreview])
+
+  // 清理项目图片预览
+  const cleanupItemImagePreview = useCallback(() => {
+    if (itemImagePreview) {
+      URL.revokeObjectURL(itemImagePreview)
+      setItemImagePreview(null)
+    }
+    setItemImageFile(null)
+  }, [itemImagePreview])
+
+  // 清理项目视频预览
+  const cleanupItemVideoPreview = useCallback(() => {
+    if (itemVideoPreview) {
+      URL.revokeObjectURL(itemVideoPreview)
+      setItemVideoPreview(null)
+    }
+    setItemVideoFile(null)
+  }, [itemVideoPreview])
 
   const handleCultureSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      let finalImage = cultureFormData.image
+      const oldImage = editingCulture?.image
+
+      if (cultureImageFile) {
+        const ossUrl = await uploadToOss(cultureImageFile)
+        if (ossUrl) {
+          finalImage = ossUrl
+          // 删除旧图片
+          if (oldImage && oldImage.startsWith('https://')) {
+            await deleteOssFile(oldImage)
+          }
+        }
+      }
+
+      const submitData = { ...cultureFormData, image: finalImage }
+
       if (editingCulture) {
-        const res = await axios.put(`/api/admin/culture/${editingCulture.id}`, cultureFormData)
+        const res = await axios.put(`/api/admin/culture/${editingCulture.id}`, submitData)
         if (res.data.success) {
           setShowCultureModal(false)
           toast.success('更新文化分类成功')
           fetchCultures()
+          cleanupCultureImagePreview()
         }
       } else {
-        const res = await axios.post('/api/admin/culture', cultureFormData)
+        const res = await axios.post('/api/admin/culture', submitData)
         if (res.data.success) {
           setShowCultureModal(false)
           toast.success('添加文化分类成功')
-          // 重新获取列表
           setCulturePagination({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
           fetchCultures()
+          cleanupCultureImagePreview()
         }
       }
     } catch (error) {
@@ -328,21 +418,53 @@ const CulturePage = () => {
     if (!selectedCulture) return
 
     try {
+      let finalImage = itemFormData.image
+      let finalVideo = itemFormData.video
+      const oldImage = editingItem?.image
+      const oldVideo = editingItem?.video
+
+      if (itemImageFile) {
+        const ossUrl = await uploadToOss(itemImageFile)
+        if (ossUrl) {
+          finalImage = ossUrl
+          // 删除旧图片
+          if (oldImage && oldImage.startsWith('https://')) {
+            await deleteOssFile(oldImage)
+          }
+        }
+      }
+
+      if (itemVideoFile) {
+        const ossUrl = await uploadToOss(itemVideoFile)
+        if (ossUrl) {
+          finalVideo = ossUrl
+          // 删除旧视频
+          if (oldVideo && oldVideo.startsWith('https://')) {
+            await deleteOssFile(oldVideo)
+          }
+        }
+      }
+
+      const submitData = { ...itemFormData, image: finalImage, video: finalVideo }
+
       if (editingItem) {
-        const res = await axios.put(`/api/admin/culture/${selectedCulture.id}/items/${editingItem.id}`, itemFormData)
+        const res = await axios.put(`/api/admin/culture/${selectedCulture.id}/items/${editingItem.id}`, submitData)
         if (res.data.success) {
           setShowItemModal(false)
           toast.success('更新文化项目成功')
           fetchCultureItems(selectedCulture.id)
+          cleanupItemImagePreview()
+          cleanupItemVideoPreview()
         }
       } else {
-        const res = await axios.post(`/api/admin/culture/${selectedCulture.id}/items`, itemFormData)
+        const res = await axios.post(`/api/admin/culture/${selectedCulture.id}/items`, submitData)
         if (res.data.success) {
           setShowItemModal(false)
           toast.success('添加文化项目成功')
-          // 重新获取列表
           setItemPagination({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
           fetchCultureItems(selectedCulture.id)
+          cleanupItemImagePreview()
+          cleanupItemVideoPreview()
         }
       }
     } catch (error) {
@@ -399,6 +521,28 @@ const CulturePage = () => {
               >
                 添加文化分类
               </button>
+            </div>
+            
+            <div className="mb-4">
+              <div className="flex-1 min-w-[200px] max-w-md flex gap-2">
+                <input
+                  type="text"
+                  placeholder="搜索文化分类（名称）"
+                  value={cultureSearch}
+                  onChange={(e) => setCultureSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCultureSearch()}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+                <button onClick={handleCultureSearch} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                  搜索
+                </button>
+                <button 
+                  onClick={handleCultureReset} 
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  重置
+                </button>
+              </div>
             </div>
 
             <div className="bg-white shadow-md rounded-lg overflow-hidden">
@@ -556,6 +700,30 @@ const CulturePage = () => {
                 添加文化项目
               </button>
             </div>
+            
+            {selectedCulture && (
+              <div className="mb-4">
+                <div className="flex-1 min-w-[200px] max-w-md flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="搜索文化项目（名称）"
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleItemSearch()}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <button onClick={handleItemSearch} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                    搜索
+                  </button>
+                  <button 
+                    onClick={handleItemReset} 
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                  >
+                    重置
+                  </button>
+                </div>
+              </div>
+            )}
 
             {!selectedCulture ? (
               <div className="bg-white shadow-md rounded-lg p-8 text-center">
@@ -777,7 +945,7 @@ const CulturePage = () => {
                             <input
                               type="file"
                               accept="image/*"
-                              onChange={(e) => handleImageUpload(e, 'culture')}
+                              onChange={(e) => handleImageSelect(e, 'culture')}
                               disabled={uploadLoading}
                               className="hidden"
                             />
@@ -804,7 +972,18 @@ const CulturePage = () => {
                 <div className="flex justify-end gap-2 mt-6">
                   <button
                     type="button"
-                    onClick={() => setShowCultureModal(false)}
+                    onClick={() => {
+                      setShowCultureModal(false)
+                      // 清理预览资源
+                      cleanupCultureImagePreview()
+                      // 恢复原有图片
+                      if (editingCulture) {
+                        setCultureFormData({
+                          ...cultureFormData,
+                          image: editingCulture.image || ''
+                        })
+                      }
+                    }}
                     className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     取消
@@ -875,7 +1054,7 @@ const CulturePage = () => {
                             <input
                               type="file"
                               accept="image/*"
-                              onChange={(e) => handleImageUpload(e, 'item')}
+                              onChange={(e) => handleImageSelect(e, 'item')}
                               disabled={uploadLoading}
                               className="hidden"
                             />
@@ -916,7 +1095,7 @@ const CulturePage = () => {
                             <input
                               type="file"
                               accept="video/*"
-                              onChange={handleVideoUpload}
+                              onChange={handleVideoSelect}
                               disabled={uploadLoading}
                               className="hidden"
                             />
@@ -943,7 +1122,20 @@ const CulturePage = () => {
                 <div className="flex justify-end gap-2 mt-6">
                   <button
                     type="button"
-                    onClick={() => setShowItemModal(false)}
+                    onClick={() => {
+                      setShowItemModal(false)
+                      // 清理预览资源
+                      cleanupItemImagePreview()
+                      cleanupItemVideoPreview()
+                      // 恢复原有图片和视频
+                      if (editingItem) {
+                        setItemFormData({
+                          ...itemFormData,
+                          image: editingItem.image || '',
+                          video: editingItem.video || ''
+                        })
+                      }
+                    }}
                     className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                   >
                     取消

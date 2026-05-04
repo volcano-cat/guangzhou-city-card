@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { createReadStream } from 'fs'
+import { createReadStream, statSync } from 'fs'
 import path from 'path'
 import { errorResponse } from '@/lib/response'
 
@@ -15,17 +15,21 @@ export async function GET(request: NextRequest, { params }: { params: { videoId:
       return errorResponse('视频文件不存在', 404)
     }
     
-    // 创建可读流
-    const stream = createReadStream(videoPath)
+    // 获取文件大小
+    const stats = statSync(videoPath)
     
     // 确定内容类型
     const contentType = getContentType(videoId)
     
-    // 返回视频流
-    return new Response(stream, {
+    // 返回视频流（使用 Buffer 形式）
+    const fs = await import('fs/promises')
+    const buffer = await fs.readFile(videoPath)
+    
+    return new Response(buffer, {
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `inline; filename="${videoId}"`,
+        'Content-Length': stats.size.toString(),
       },
     })
     

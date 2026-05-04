@@ -40,8 +40,8 @@ const AdminPage = () => {
       icon: '🏮'
     },
     {
-      name: '角色管理',
-      href: '/admin/roles',
+      name: '用户管理',
+      href: '/admin/users',
       icon: '👥'
     }
   ]

@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       oldFood.images.forEach(oldImage => {
         // 检查旧图片是否仍然在新的图片列表中
         const isImageStillUsed = images && Array.isArray(images) && images.includes(oldImage)
-        if (!isImageStillUsed) {
+        if (!isImageStillUsed && typeof oldImage === 'string') {
           // 从URL中提取文件名
           const filename = oldImage.split('/').pop()
           if (filename) {
@@ -108,15 +108,17 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     if (oldFood?.images && Array.isArray(oldFood.images) && oldFood.images.length > 0) {
       oldFood.images.forEach(oldImage => {
         // 从URL中提取文件名
-        const filename = oldImage.split('/').pop()
-        if (filename) {
-          const filePath = path.join(process.cwd(), 'storage', 'foods', filename)
-          // 检查文件是否存在，存在则删除
-          if (existsSync(filePath)) {
-            try {
-              unlinkSync(filePath)
-            } catch (error) {
-              console.error('删除图片失败:', error)
+        if (typeof oldImage === 'string') {
+          const filename = oldImage.split('/').pop()
+          if (filename) {
+            const filePath = path.join(process.cwd(), 'storage', 'foods', filename)
+            // 检查文件是否存在，存在则删除
+            if (existsSync(filePath)) {
+              try {
+                unlinkSync(filePath)
+              } catch (error) {
+                console.error('删除图片失败:', error)
+              }
             }
           }
         }

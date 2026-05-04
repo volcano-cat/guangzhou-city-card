@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
 

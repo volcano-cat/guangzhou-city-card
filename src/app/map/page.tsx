@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+export const dynamic = 'force-dynamic';
+
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 // 全局类型声明
@@ -10,7 +12,7 @@ declare global {
   }
 }
 
-export default function MapPage() {
+function MapContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -360,5 +362,13 @@ export default function MapPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function MapPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div></div>}>
+      <MapContent />
+    </Suspense>
   )
 }

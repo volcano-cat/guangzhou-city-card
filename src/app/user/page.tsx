@@ -1,11 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { useAuthStore } from '@/store/auth'
 import { toast } from 'sonner'
+
+const deleteOssFile = async (fileUrl: string) => {
+  try {
+    await axios.post('/api/upload/oss/delete', { fileUrl })
+  } catch (error) {
+    console.error('删除OSS文件失败:', error)
+  }
+}
 
 interface AttractionFavorite {
   id: number
@@ -100,6 +108,8 @@ export default function UserPage() {
   const [editLoading, setEditLoading] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [uploadLoading, setUploadLoading] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (!user && !authLoading) {
@@ -142,35 +152,50 @@ export default function UserPage() {
     router.push('/')
   }
 
-  if (!user) {
-    return null
-  }
-
-  // 处理头像上传
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理头像选择（预览）
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    setUploadLoading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+    setAvatarFile(file)
+    setEditForm({ ...editForm, avatar: previewUrl })
+  }
 
-      const res = await axios.post('/api/upload/image', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        withCredentials: true
+  // 上传头像到OSS
+  const uploadAvatarToOss = useCallback(async (): Promise<string | null> => {
+    if (!avatarFile) return null
+
+    try {
+      const res = await axios.post('/api/upload/oss', {
+        fileName: avatarFile.name,
+        contentType: avatarFile.type,
       })
 
-      if (res.data.success) {
-        setEditForm({ ...editForm, avatar: res.data.data.url })
+      if (!res.data.success) {
+        return null
       }
+
+      const { uploadUrl, fileUrl } = res.data.data
+
+      await fetch(uploadUrl, {
+        method: 'PUT',
+        body: avatarFile,
+        headers: {
+          'Content-Type': avatarFile.type,
+        },
+      })
+
+      return fileUrl
     } catch (error) {
-      console.error('上传头像失败', error)
-    } finally {
-      setUploadLoading(false)
+      console.error('上传头像到OSS失败:', error)
+      return null
     }
+  }, [avatarFile])
+
+  if (!user) {
+    return null
   }
 
   // 修改资料弹窗
@@ -178,11 +203,31 @@ export default function UserPage() {
     e.preventDefault()
     setEditLoading(true)
     try {
-      const res = await axios.put('/api/users/profile', editForm, { withCredentials: true })
+      let finalAvatarUrl = editForm.avatar
+      const oldAvatarUrl = user?.avatar
+
+      if (avatarFile) {
+        const ossUrl = await uploadAvatarToOss()
+        if (ossUrl) {
+          finalAvatarUrl = ossUrl
+          // 删除旧头像
+          if (oldAvatarUrl && oldAvatarUrl.startsWith('https://')) {
+            await deleteOssFile(oldAvatarUrl)
+          }
+        }
+      }
+
+      const res = await axios.put('/api/users/profile', { ...editForm, avatar: finalAvatarUrl }, { withCredentials: true })
       if (res.data.success) {
         setUser(res.data.data)
         setIsEditModalOpen(false)
         toast.success('修改资料成功')
+        // 清理预览
+        if (avatarPreview) {
+          URL.revokeObjectURL(avatarPreview)
+          setAvatarPreview(null)
+        }
+        setAvatarFile(null)
       }
     } catch (error) {
       console.error('修改资料失败', error)
@@ -517,8 +562,7 @@ export default function UserPage() {
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleAvatarUpload}
-                      disabled={uploadLoading}
+                      onChange={handleAvatarSelect}
                       className="hidden"
                     />
                   </label>
@@ -542,7 +586,20 @@ export default function UserPage() {
               <div className="flex space-x-4">
                 <button
                   type="button"
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={() => {
+                    setIsEditModalOpen(false)
+                    // 清理预览资源
+                    if (avatarPreview) {
+                      URL.revokeObjectURL(avatarPreview)
+                      setAvatarPreview(null)
+                    }
+                    setAvatarFile(null)
+                    // 恢复原有头像
+                    setEditForm({
+                      nickname: user.nickname || '',
+                      avatar: user.avatar || ''
+                    })
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100"
                 >
                   取消

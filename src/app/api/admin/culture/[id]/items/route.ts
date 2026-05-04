@@ -18,6 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '10')
+    const search = searchParams.get('search') || ''
     const skip = (page - 1) * pageSize
 
     const culture = await prisma.culture.findUnique({
@@ -28,18 +29,25 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return notFoundResponse('文化分类不存在')
     }
 
+    const where = search
+      ? {
+          cultureId: parseInt(id),
+          name: { contains: search }
+        }
+      : {
+          cultureId: parseInt(id)
+        }
+
     const [items, total] = await Promise.all([
       prisma.cultureItem.findMany({
-        where: { cultureId: parseInt(id) },
+        where,
         orderBy: {
           createdAt: 'desc'
         },
         skip,
         take: pageSize
       }),
-      prisma.cultureItem.count({
-        where: { cultureId: parseInt(id) }
-      })
+      prisma.cultureItem.count({ where })
     ])
 
     return successResponse({

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { toast } from 'sonner'
 
 export default function ForgotPasswordPage() {

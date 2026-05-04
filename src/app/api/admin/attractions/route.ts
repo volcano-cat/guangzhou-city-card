@@ -17,10 +17,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '10')
+    const search = searchParams.get('search') || ''
     const skip = (page - 1) * pageSize
+
+    const where = search
+      ? {
+          name: { contains: search }
+        }
+      : {}
 
     const [attractions, total] = await Promise.all([
       prisma.attraction.findMany({
+        where,
         include: {
           category: true
         },
@@ -30,7 +38,7 @@ export async function GET(request: NextRequest) {
         skip,
         take: pageSize
       }),
-      prisma.attraction.count()
+      prisma.attraction.count({ where })
     ])
 
     return successResponse(

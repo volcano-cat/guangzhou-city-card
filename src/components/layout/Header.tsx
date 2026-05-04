@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/auth'
-import axios from 'axios'
+import axios from '@/lib/axios'
 import { toast } from 'sonner'
 
 const navigation = [
@@ -16,9 +16,105 @@ const navigation = [
 ]
 
 export default function Header() {
-  const { user, logout } = useAuthStore()
+  const { user, logout, setUser, isLoading } = useAuthStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+
+  // 检查 Cookie 中是否有指定的 token
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null
+    return null
+  }
+
+  // 检查是否有 access token
+  const hasAccessToken = () => {
+    return getCookie('accessToken') !== null
+  }
+
+  // 检查是否有 refresh token
+  const hasRefreshToken = () => {
+    return getCookie('refreshToken') !== null
+  }
+
+  // 页面初始化时检查并刷新 token（只执行一次）
+  useEffect(() => {
+    let isMounted = true
+    let hasRefreshed = false
+    
+    const initAuth = async () => {
+      if (!isMounted || hasRefreshed) return
+      hasRefreshed = true
+      
+      // 等待状态恢复完成
+      if (isLoading) {
+        setTimeout(initAuth, 100)
+        return
+      }
+      
+      // 如果没有 refresh token，说明用户确实没有登录
+      if (!hasRefreshToken()) {
+        return
+      }
+      
+      // 判断是否需要刷新：
+      // 1. 有用户信息但没有 access token（Cookie 中没有）
+      // 2. 有 refresh token 但没有 access token
+      // 3. 有用户信息但 token 即将过期（超过 55 分钟）
+      // 4. 有 refresh token 但没有用户信息（localStorage 被清空了）
+      const now = Date.now()
+      const tokenTimestamp = localStorage.getItem('tokenTimestamp')
+      const tokenExpired = tokenTimestamp && (now - parseInt(tokenTimestamp)) / 60000 > 55
+      
+      const needsRefresh = (user && !hasAccessToken()) || 
+                          (hasRefreshToken() && !hasAccessToken()) ||
+                          (user && tokenExpired) ||
+                          (hasRefreshToken() && !user)
+      
+      if (needsRefresh) {
+        console.log('🔄 初始化时检测到需要刷新 token:', {
+          hasUser: !!user,
+          hasAccessToken: hasAccessToken(),
+          hasRefreshToken: hasRefreshToken(),
+          tokenExpired
+        })
+        
+        try {
+          const refreshInstance = axios.create({
+            baseURL: '/',
+            withCredentials: true,
+          })
+          
+          const refreshResponse = await refreshInstance.post('/api/auth/refresh')
+          if (refreshResponse.data.success) {
+            console.log('✅ Token 刷新成功')
+            const userResponse = await refreshInstance.get('/api/auth/me')
+            if (userResponse.data.success) {
+              setUser(userResponse.data.data)
+              localStorage.setItem('tokenTimestamp', now.toString())
+            }
+          } else {
+            // 刷新失败，清除用户状态
+            console.log('❌ Token 刷新失败，清除登录状态')
+            logout()
+            localStorage.removeItem('tokenTimestamp')
+          }
+        } catch (error) {
+          // 刷新失败（可能 refresh token 也过期了），清除用户状态
+          console.error('❌ 初始化时刷新 token 失败:', error)
+          logout()
+          localStorage.removeItem('tokenTimestamp')
+        }
+      }
+    }
+
+    initAuth()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isLoading, user, logout, setUser])
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
