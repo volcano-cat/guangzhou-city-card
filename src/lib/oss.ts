@@ -1,13 +1,14 @@
 import OSS from 'ali-oss'
 
-const client = new OSS({
+export async function getOssUploadUrl(fileName: string, contentType: string): Promise<{ uploadUrl: string; fileUrl: string }> {
+
+  const client = new OSS({
   region: 'oss-cn-guangzhou',
   accessKeyId: process.env.ALI_OSS_ACCESS_KEY_ID!,
   accessKeySecret: process.env.ALI_OSS_ACCESS_KEY_SECRET!,
   bucket: process.env.ALI_OSS_BUCKET!,
 })
-
-export async function getOssUploadUrl(fileName: string, contentType: string): Promise<{ uploadUrl: string; fileUrl: string }> {
+  
   const date = new Date()
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
