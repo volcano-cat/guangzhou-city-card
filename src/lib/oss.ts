@@ -1,27 +1,19 @@
-import OSS from 'ali-oss'
-
-function createOssClient(): OSS {
-  return new OSS({
+export async function getOssUploadUrl(fileName: string, contentType: string): Promise<{ uploadUrl: string; fileUrl: string }> {
+  const OSS = await import('ali-oss').then(m => m.default || m)
+  
+  const client = new OSS({
     region: 'oss-cn-guangzhou',
     accessKeyId: process.env.ALI_OSS_ACCESS_KEY_ID!,
     accessKeySecret: process.env.ALI_OSS_ACCESS_KEY_SECRET!,
     bucket: process.env.ALI_OSS_BUCKET!,
   })
-}
-
-export async function getOssUploadUrl(fileName: string, contentType: string): Promise<{ uploadUrl: string; fileUrl: string }> {
-  const client = createOssClient()
+  
   const date = new Date()
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   
   const objectName = `${year}/${month}/${day}/${Date.now()}-${fileName}`
-  
-  const options = {
-    expires: 3600,
-    'Content-Type': contentType,
-  }
   
   const uploadUrl = await client.signatureUrl(objectName, {
     method: 'PUT',
@@ -40,6 +32,15 @@ export async function deleteOssFile(fileUrl: string): Promise<void> {
   }
   
   try {
+    const OSS = await import('ali-oss').then(m => m.default || m)
+    
+    const client = new OSS({
+      region: 'oss-cn-guangzhou',
+      accessKeyId: process.env.ALI_OSS_ACCESS_KEY_ID!,
+      accessKeySecret: process.env.ALI_OSS_ACCESS_KEY_SECRET!,
+      bucket: process.env.ALI_OSS_BUCKET!,
+    })
+    
     const objectName = fileUrl.replace(`https://${process.env.ALI_OSS_BUCKET}.oss-cn-guangzhou.aliyuncs.com/`, '')
     await client.delete(objectName)
   } catch (error) {
